@@ -66,12 +66,14 @@ input.txt{margin:8px 0 12px}
 .staffgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .center{text-align:center;padding:40px 10px;color:var(--mute)}
 a{color:var(--pri)}
+.live{font-size:12px;color:#9ca3af;white-space:nowrap}.live b{color:#22c55e}.live.off b{color:#f59e0b}
 </style>
 </head>
 <body>
 <header class="bar">
   <div class="brand">📦 Pack</div>
   <select id="tabSel" aria-label="Live session"></select>
+  <span id="live" class="live"><b>●</b></span>
   <button id="staffBtn" class="chipbtn">👤 …</button>
 </header>
 <main id="app"><div class="center">Loading…</div></main>
@@ -105,7 +107,7 @@ const store = {
 };
 const money = n => (Number(n) || 0).toLocaleString('en-US');
 const S = { pin: store.get('pin') || '', staff: store.get('staff') || '', staffList: [], tabs: [], tab: '', names: {},
-  orders: [], at: '', filter: 'topack', q: '', cur: null, counts: [], hist: [], last: { c: '', t: 0 }, busy: false };
+  orders: [], at: '', filter: 'topack', q: '', cur: null, counts: [], hist: [], last: { c: '', t: 0 }, busy: false, ver: '', pending: 0, syncing: false };
 
 (function () {
   try { const q = new URLSearchParams(location.search).get('api'); if (q) store.set('api', q); } catch (e) {}
@@ -114,7 +116,7 @@ const API = store.get('api') || 'https://script.google.com/macros/s/AKfycbzIsGrH
 async function api(fn, arg) {
   if (!API) throw new Error('App link is missing the sheet address. Ask the shop owner for the full staff link.');
   const action = { apiBootstrap: 'bootstrap', apiOrders: 'orders', apiUpdate: 'update' }[fn];
-  const payload = fn === 'apiOrders' ? { tab: arg } : (arg || {});
+  const payload = (fn === 'apiOrders' && typeof arg === 'string') ? { tab: arg } : (arg || {});
   const url = API + '?action=' + action + '&pin=' + encodeURIComponent(S.pin) + '&payload=' + encodeURIComponent(JSON.stringify(payload));
   let r;
   try { r = await fetch(url, { redirect: 'follow' }); } catch (e) { throw new Error('No connection to the sheet. Check internet and try again.'); }
@@ -190,15 +192,36 @@ async function boot() {
     $('#app').innerHTML = `<div class="center">⚠ ${esc(errMsg(e))}<br><br><button class="btn" onclick="boot()">Try again</button></div>`;
   }
 }
+function setLive(ok) { const el = $('#live'); if (el) { el.classList.toggle('off', !ok); el.title = ok ? 'Live' : 'Offline – retrying'; } }
+function applyOrders(r) {
+  S.orders = r.orders; S.ver = r.ver || ''; S.at = r.at;
+  if (S.cur) {
+    const o = S.orders.find(x => x.no === S.cur.no);
+    if (o) { const same = o.items.length === S.cur.items.length; S.cur = o; if (!same) S.counts = o.items.map(() => 0); renderOrder(); }
+    else { S.cur = null; renderList(); }
+  } else if (!document.activeElement || document.activeElement.id !== 'q') renderList(); else renderCards();
+}
 async function loadOrders(quiet) {
   if (!quiet && !S.cur) $('#app').innerHTML = '<div class="center">Loading orders…</div>';
   try {
-    const r = await api('apiOrders', S.tab);
-    S.orders = r.orders; S.at = r.at;
-    if (S.cur) { const o = S.orders.find(x => x.no === S.cur.no); if (o) { S.cur = o; renderOrder(); } else { S.cur = null; renderList(); } }
-    else renderList();
-  } catch (e) { toast('⚠ ' + errMsg(e), 5000); if (!S.cur) $('#app').innerHTML = `<div class="center">⚠ ${esc(errMsg(e))}</div>`; }
+    const r = await api('apiOrders', { tab: S.tab, ver: quiet ? S.ver : '' });
+    setLive(true);
+    if (r.unchanged) { S.at = r.at; return; }
+    applyOrders(r);
+  } catch (e) {
+    setLive(false);
+    if (!quiet) { toast('⚠ ' + errMsg(e), 5000); if (!S.cur) $('#app').innerHTML = `<div class="center">⚠ ${esc(errMsg(e))}</div>`; }
+  }
 }
+/* Check the sheet for changes every few seconds while the app is open. */
+async function poll() {
+  if (S.syncing || S.pending || document.hidden || !S.tab) return;
+  if (!$('#modal').classList.contains('hidden')) return;
+  S.syncing = true;
+  try { await loadOrders(true); } finally { S.syncing = false; }
+}
+setInterval(poll, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
 /* ---------- list ---------- */
 const FILTERS = [['topack', 'To pack', o => !o.packed], ['toship', 'To ship', o => o.packed && !o.shipped], ['unpaid', 'Unpaid', o => !o.paid], ['all', 'All', () => true]];
@@ -241,7 +264,7 @@ function renderOrder() {
   const o = S.cur; if (!o) return renderList();
   const need = o.items.reduce((a, it) => a + it.qty, 0);
   const got = o.items.reduce((a, it, i) => a + Math.min(S.counts[i], it.qty), 0);
-  const done = complete(), B = S.busy ? 'disabled' : '';
+  const done = complete(), B = '';
   const who = (by, at) => (by || at) ? `<div class="mute">${esc(by)}${by && at ? ' · ' : ''}${esc(at)}</div>` : '';
   const items = o.items.map((it, i) => {
     const c = o.packed ? it.qty : S.counts[i];
@@ -286,17 +309,37 @@ function renderOrder() {
     </div>`;
 }
 
+function nowText() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+/* Update the screen at once, save to the sheet in the background. */
 async function update(action, value, extra) {
-  if (S.busy) return;
-  S.busy = true; renderOrder();
+  const o = S.cur; if (!o) return;
+  const key = { packed: 'packed', shipped: 'shipped', paid: 'paid' }[action];
+  const before = { v: o[key], by: o[key + 'By'], at: o[key + 'At'], tracking: o.tracking, checked: o.checked };
+  o[key] = value; o[key + 'By'] = value ? S.staff : ''; o[key + 'At'] = value ? nowText() : '';
+  if (action === 'shipped' && value && extra && extra.tracking) o.tracking = extra.tracking;
+  if (action === 'packed') { o.checked = value && !!(extra && extra.verified); if (value) store.del(scanKey(o)); else S.counts = o.items.map(() => 0); }
+  if (S.cur === o) renderOrder();
+  toast((value ? '✓ ' : 'Undone: ') + action + ' · saving…', 1500); vib(60);
+  S.pending++;
   try {
-    const r = await api('apiUpdate', Object.assign({ tab: S.tab, orderNo: S.cur.no, action, value, staff: S.staff }, extra || {}));
-    if (r.order) { const i = S.orders.findIndex(x => x.no === r.order.no); if (i >= 0) S.orders[i] = r.order; S.cur = r.order; }
-    if (action === 'packed' && value) store.del(scanKey(S.cur));
-    if (action === 'packed' && !value) S.counts = S.cur.items.map(() => 0);
-    toast(value ? '✓ Marked ' + action : 'Undone: ' + action); vib(60);
-  } catch (e) { toast('⚠ ' + errMsg(e), 6000); }
-  finally { S.busy = false; renderOrder(); }
+    const r = await api('apiUpdate', Object.assign({ tab: S.tab, orderNo: o.no, action, value, staff: S.staff }, extra || {}));
+    if (r.order) {
+      const i = S.orders.findIndex(x => x.no === r.order.no);
+      if (i >= 0) S.orders[i] = r.order;
+      if (S.cur && S.cur.no === r.order.no) { S.cur = r.order; renderOrder(); }
+    }
+    toast('✓ Saved to sheet', 1200); setLive(true);
+  } catch (e) {
+    o[key] = before.v; o[key + 'By'] = before.by; o[key + 'At'] = before.at; o.tracking = before.tracking; o.checked = before.checked;
+    if (S.cur === o) renderOrder();
+    toast('⚠ Not saved: ' + errMsg(e), 6000); beep(220, .4); setLive(false);
+  } finally {
+    S.pending--;
+    if (!S.pending) setTimeout(poll, 400);
+  }
 }
 async function doPack(override) {
   const o = S.cur; let reason = '';
