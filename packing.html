@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Pack &amp; Ship</title>
+<title>Makoto ຈັດເຄື່ອງ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -31,7 +31,8 @@ main{padding:12px;max-width:720px;margin:0 auto 40px}
 .mute{color:var(--mute);font-size:14px}
 .pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .pill{font-size:12px;padding:3px 8px;border-radius:999px;background:#eef0f3;color:var(--mute)}
-.pill.y{background:var(--okbg);color:#166534}
+.pill.y{background:var(--okbg);color:#166534}.pill.bad{background:var(--badbg);color:#991b1b}.pill.w{background:var(--warnbg);color:#92400e}.pill.p{background:#ede9fe;color:#5b21b6}
+.warnbox{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--badbg);color:#991b1b;font-size:14px;font-weight:600}
 .btn{display:inline-flex;justify-content:center;align-items:center;gap:6px;border:0;border-radius:10px;padding:13px 16px;font-size:16px;font-weight:600;background:#e5e7eb;color:var(--ink);cursor:pointer;font-family:inherit}
 .btn.sm{padding:8px 12px;font-size:14px}
 .btn.pri{background:var(--pri);color:#fff}.btn.ok{background:var(--ok);color:#fff}.btn.full{width:100%}
@@ -70,6 +71,11 @@ input.txt{margin:8px 0 12px}
 .camerr{margin:8px 12px;padding:10px;border-radius:10px;background:var(--warnbg);color:#92400e;font-size:14px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111827;color:#fff;padding:12px 16px;border-radius:10px;z-index:30;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
 #toast.show{opacity:1}
+#flashOv{position:fixed;inset:0;z-index:25;pointer-events:none;opacity:0;transition:opacity .35s}
+#flashOv.on{opacity:.55;transition:none}
+.lblimg{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:8px;background:#f3f4f6;margin:6px 0}
+.lblstate{font-weight:700;margin:6px 0}
+.choice{display:grid;gap:8px;margin:10px 0}
 .staffgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .center{text-align:center;padding:40px 10px;color:var(--mute)}
 a{color:var(--pri)}
@@ -78,30 +84,33 @@ a{color:var(--pri)}
 </head>
 <body>
 <header class="bar">
-  <div class="brand">📦 Pack</div>
-  <select id="tabSel" aria-label="Live session"></select>
+  <div class="brand">📦 ຈັດເຄື່ອງ</div>
+  <select id="tabSel" aria-label="ຮອບໄລຟ໌"></select>
   <span id="live" class="live"><b>●</b></span>
   <button id="staffBtn" class="chipbtn">👤 …</button>
 </header>
-<main id="app"><div class="center">Loading…</div></main>
+<main id="app"><div class="center">ກຳລັງໂຫຼດ…</div></main>
 
 <div id="scanner" class="overlay hidden">
-  <div class="scanTop"><b id="scanTitle"></b><div class="row" style="gap:6px"><button class="btn sm hidden" id="torchBtn">🔦 Light</button><button class="btn sm" id="scanClose">Done</button></div></div>
+  <div class="scanTop"><b id="scanTitle"></b><div class="row" style="gap:6px"><button class="btn sm hidden" id="torchBtn">🔦 ໄຟ</button><button class="btn sm" id="scanClose">ແລ້ວ</button></div></div>
   <div class="camwrap" id="camWrap"><video id="cam" playsinline muted autoplay></video><div class="guide"></div></div>
   <div id="camErr" class="camerr hidden"></div>
-  <div id="scanMsg" class="msg">Point the camera at a barcode</div>
+  <div id="scanMsg" class="msg">ສ່ອງກ້ອງໃສ່ບາໂຄດ</div>
   <div class="scanPanel">
     <div class="row" style="gap:6px">
-      <button class="btn sm" id="undoBtn" style="flex:1">↶ Undo last</button>
-      <label class="btn sm" style="flex:1">📷 From photo<input type="file" accept="image/*" capture="environment" id="photoIn" hidden></label>
+      <button class="btn sm" id="undoBtn" style="flex:1">↶ ຍົກເລີກອັນລ່າສຸດ</button>
+      <label class="btn sm" style="flex:1">📷 ຈາກຮູບ<input type="file" accept="image/*" capture="environment" id="photoIn" hidden></label>
     </div>
-    <form class="manual" id="manualF"><input id="manualIn" placeholder="Type barcode or code (e.g. L60)" autocomplete="off"><button class="btn sm pri">Add</button></form>
+    <form class="manual" id="manualF"><input id="manualIn" placeholder="ພິມບາໂຄດ ຫຼື ລະຫັດ (ເຊັ່ນ L60)" autocomplete="off"><button class="btn sm pri">ເພີ່ມ</button></form>
     <div id="scanItems"></div>
   </div>
 </div>
 
 <div id="modal" class="overlay hidden"><div class="sheet" id="modalBody"></div></div>
 <div id="toast"></div>
+<div id="flashOv"></div>
+<label id="hapt" style="position:absolute;left:-9999px;opacity:0"><input type="checkbox" switch></label>
+<input type="file" accept="image/*" capture="environment" id="labelIn" hidden>
 <div id="filescan" style="display:none"></div>
 
 <script>
@@ -121,17 +130,25 @@ const S = { pin: store.get('pin') || '', staff: store.get('staff') || '', staffL
 })();
 const API = store.get('api') || 'https://script.google.com/macros/s/AKfycbzIsGrHnZiYnKNlQkOIFmOkchK4TN5wkbETV-MyUYp1nVAx_Frz114wmCSUCl2k4hcX/exec';
 async function api(fn, arg) {
-  if (!API) throw new Error('App link is missing the sheet address. Ask the shop owner for the full staff link.');
-  const action = { apiBootstrap: 'bootstrap', apiOrders: 'orders', apiUpdate: 'update' }[fn];
+  if (!API) throw new Error('ລິ້ງແອັບບໍ່ຄົບ. ຂໍລິ້ງໃໝ່ຈາກເຈົ້າຂອງຮ້ານ.');
+  const action = { apiBootstrap: 'bootstrap', apiOrders: 'orders', apiUpdate: 'update', apiLabelSent: 'labelsent', apiLabelImg: 'labelimg', apiLabelAssign: 'labelassign', apiLabelDismiss: 'labeldismiss' }[fn];
   const payload = (fn === 'apiOrders' && typeof arg === 'string') ? { tab: arg } : (arg || {});
   const url = API + '?action=' + action + '&pin=' + encodeURIComponent(S.pin) + '&payload=' + encodeURIComponent(JSON.stringify(payload));
   let r;
-  try { r = await fetch(url, { redirect: 'follow' }); } catch (e) { throw new Error('No connection to the sheet. Check internet and try again.'); }
-  let j; try { j = await r.json(); } catch (e) { throw new Error('The sheet did not answer correctly. Check the Apps Script deployment is "Anyone".'); }
-  if (!j.ok) throw new Error(j.error || 'Error');
+  try { r = await fetch(url, { redirect: 'follow' }); } catch (e) { throw new Error('ເຊື່ອມຕໍ່ຊີດບໍ່ໄດ້. ກວດອິນເຕີເນັດ ແລ້ວລອງໃໝ່.'); }
+  let j; try { j = await r.json(); } catch (e) { throw new Error('ຊີດຕອບກັບບໍ່ຖືກຕ້ອງ. ກວດການຕັ້ງຄ່າ Apps Script (Anyone).'); }
+  if (!j.ok) throw new Error(j.error || 'ຜິດພາດ');
   return j.data;
 }
-const errMsg = e => String((e && e.message) || e || 'Error').replace(/^Exception:\s*/, '');
+async function apiPost(body) {
+  let r;
+  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ pin: S.pin }, body)), redirect: 'follow' }); }
+  catch (e) { throw new Error('ເຊື່ອມຕໍ່ຊີດບໍ່ໄດ້. ກວດອິນເຕີເນັດ ແລ້ວລອງໃໝ່.'); }
+  let j; try { j = await r.json(); } catch (e) { throw new Error('ຊີດຕອບກັບບໍ່ຖືກຕ້ອງ.'); }
+  if (!j.ok) throw new Error(j.error || 'ຜິດພາດ');
+  return j.data;
+}
+const errMsg = e => String((e && e.message) || e || 'ຜິດພາດ').replace(/^Exception:\s*/, '');
 
 /* ---------- feedback ---------- */
 let AC;
@@ -139,14 +156,22 @@ function beep(freq, dur) {
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     const o = AC.createOscillator(), g = AC.createGain();
-    o.frequency.value = freq; o.connect(g); g.connect(AC.destination); g.gain.value = 0.15;
+    o.type = 'square'; o.frequency.value = freq; o.connect(g); g.connect(AC.destination); g.gain.value = 0.35;
     o.start(); o.stop(AC.currentTime + dur);
   } catch(e) {}
 }
-const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch(e) {} };
+/* Buzz: Android vibrates; iPhone (iOS 18+) gets a haptic tap from a hidden switch. */
+const haptic = () => { try { $('#hapt').click(); } catch (e) {} };
+const vib = p => { try { if (navigator.vibrate) navigator.vibrate(p); } catch(e) {} haptic(); if (Array.isArray(p)) setTimeout(haptic, 160); };
+let flashT;
+function screenFlash(kind) {
+  const el = $('#flashOv'); if (!el || !kind) return;
+  el.style.background = kind === 'ok' ? '#22c55e' : kind === 'bad' ? '#ef4444' : '#f59e0b';
+  el.classList.add('on'); clearTimeout(flashT); flashT = setTimeout(() => el.classList.remove('on'), 90);
+}
 let toastT;
 function toast(msg, ms) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms || 2500); }
-function flash(kind, msg) { const m = $('#scanMsg'); m.className = 'msg ' + kind; m.textContent = msg; const g = document.querySelector('.guide'); if (g) g.dataset.k = kind || ''; }
+function flash(kind, msg) { const m = $('#scanMsg'); m.className = 'msg ' + kind; m.textContent = msg; const g = document.querySelector('.guide'); if (g) g.dataset.k = kind || ''; screenFlash(kind); }
 
 /* ---------- dialogs ---------- */
 function dialog(html, mount) {
@@ -158,21 +183,21 @@ function dialog(html, mount) {
 function ask(title, label, val, type) {
   return dialog(`<h3>${esc(title)}</h3><div class="mute">${esc(label || '')}</div>
     <input class="txt" id="dlgIn" type="${type || 'text'}" value="${esc(val || '')}">
-    <div class="row"><button class="btn" id="dlgNo">Cancel</button><button class="btn pri" id="dlgOk">OK</button></div>`, done => {
+    <div class="row"><button class="btn" id="dlgNo">ຍົກເລີກ</button><button class="btn pri" id="dlgOk">ຕົກລົງ</button></div>`, done => {
     const i = $('#dlgIn'); setTimeout(() => i.focus(), 50);
     $('#dlgNo').onclick = () => done(null); $('#dlgOk').onclick = () => done(i.value);
     i.onkeydown = e => { if (e.key === 'Enter') done(i.value); };
   });
 }
 function confirmBox(msg) {
-  return dialog(`<p style="margin-top:0">${esc(msg)}</p><div class="row"><button class="btn" id="dlgNo">Cancel</button><button class="btn pri" id="dlgOk">Yes</button></div>`,
+  return dialog(`<p style="margin-top:0;white-space:pre-line">${esc(msg)}</p><div class="row"><button class="btn" id="dlgNo">ຍົກເລີກ</button><button class="btn pri" id="dlgOk">ແມ່ນ</button></div>`,
     done => { $('#dlgNo').onclick = () => done(false); $('#dlgOk').onclick = () => done(true); });
 }
 async function pickStaff() {
   const list = S.staffList;
-  const n = await dialog(`<h3>Who is packing?</h3>
-    ${list.length ? `<div class="staffgrid">${list.map(x => `<button class="btn" data-n="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="mute" style="margin-top:12px">Or type your name</div>` : '<div class="mute">Type your name — it is saved with every order you pack, ship or mark paid.</div>'}
-    <input class="txt" id="dlgIn" value="${esc(S.staff)}" placeholder="Your name"><button class="btn pri full" id="dlgOk">Continue</button>`, done => {
+  const n = await dialog(`<h3>ໃຜກຳລັງຈັດເຄື່ອງ?</h3>
+    ${list.length ? `<div class="staffgrid">${list.map(x => `<button class="btn" data-n="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="mute" style="margin-top:12px">ຫຼື ພິມຊື່ຂອງທ່ານ</div>` : '<div class="mute">ພິມຊື່ຂອງທ່ານ — ຈະບັນທຶກໄວ້ທຸກຄັ້ງທີ່ຈັດ, ສົ່ງ ຫຼື ໝາຍວ່າຈ່າຍແລ້ວ.</div>'}
+    <input class="txt" id="dlgIn" value="${esc(S.staff)}" placeholder="ຊື່ຂອງທ່ານ"><button class="btn pri full" id="dlgOk">ຕໍ່ໄປ</button>`, done => {
     document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => done(b.dataset.n));
     const ok = () => { const v = $('#dlgIn').value.trim(); if (v) done(v); };
     $('#dlgOk').onclick = ok; $('#dlgIn').onkeydown = e => { if (e.key === 'Enter') ok(); };
@@ -185,7 +210,7 @@ async function boot() {
   try {
     const b = await api('apiBootstrap');
     S.tabs = b.tabs; S.staffList = b.staff; S.names = b.names || {};
-    if (!S.tabs.length) { $('#app').innerHTML = '<div class="center">No tabs starting with “live” were found in this sheet.</div>'; return; }
+    if (!S.tabs.length) { $('#app').innerHTML = '<div class="center">ບໍ່ພົບແຖບທີ່ຂຶ້ນຕົ້ນດ້ວຍ “live” ໃນຊີດນີ້.</div>'; return; }
     const saved = store.get('tab');
     S.tab = S.tabs.includes(saved) ? saved : S.tabs[0];
     $('#tabSel').innerHTML = S.tabs.map(t => `<option ${t === S.tab ? 'selected' : ''}>${esc(t)}</option>`).join('');
@@ -193,23 +218,24 @@ async function boot() {
     await loadOrders();
   } catch (e) {
     if (errMsg(e).includes('PIN_REQUIRED')) {
-      const p = await ask('Enter PIN', S.pin ? 'That PIN was not accepted.' : 'Ask the shop owner for the PIN.', '', 'password');
+      const p = await ask('ໃສ່ລະຫັດ PIN', S.pin ? 'ລະຫັດ PIN ບໍ່ຖືກຕ້ອງ.' : 'ຂໍລະຫັດ PIN ຈາກເຈົ້າຂອງຮ້ານ.', '', 'password');
       if (p !== null) { S.pin = p.trim(); store.set('pin', S.pin); return boot(); }
     }
-    $('#app').innerHTML = `<div class="center">⚠ ${esc(errMsg(e))}<br><br><button class="btn" onclick="boot()">Try again</button></div>`;
+    $('#app').innerHTML = `<div class="center">⚠ ${esc(errMsg(e))}<br><br><button class="btn" onclick="boot()">ລອງໃໝ່</button></div>`;
   }
 }
-function setLive(ok) { const el = $('#live'); if (el) { el.classList.toggle('off', !ok); el.title = ok ? 'Live' : 'Offline – retrying'; } }
+function setLive(ok) { const el = $('#live'); if (el) { el.classList.toggle('off', !ok); el.title = ok ? 'ອອນລາຍ' : 'ອອບລາຍ – ກຳລັງລອງໃໝ່'; } }
 function applyOrders(r) {
-  S.orders = r.orders; S.ver = r.ver || ''; S.at = r.at;
+  S.orders = r.orders; S.problems = r.problems || []; S.ver = r.ver || ''; S.at = r.at;
   if (S.cur) {
     const o = S.orders.find(x => x.no === S.cur.no);
     if (o) { const same = o.items.length === S.cur.items.length; S.cur = o; if (!same) S.counts = o.items.map(() => 0); renderOrder(); }
     else { S.cur = null; renderList(); }
-  } else if (!document.activeElement || document.activeElement.id !== 'q') renderList(); else renderCards();
+  } else if (S.queue) renderQueue();
+  else if (!document.activeElement || document.activeElement.id !== 'q') renderList(); else renderCards();
 }
 async function loadOrders(quiet) {
-  if (!quiet && !S.cur) $('#app').innerHTML = '<div class="center">Loading orders…</div>';
+  if (!quiet && !S.cur) $('#app').innerHTML = '<div class="center">ກຳລັງໂຫຼດອໍເດີ…</div>';
   try {
     const r = await api('apiOrders', { tab: S.tab, ver: quiet ? S.ver : '' });
     setLive(true);
@@ -231,13 +257,16 @@ setInterval(poll, 5000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
 /* ---------- list ---------- */
-const FILTERS = [['topack', 'To pack', o => !o.packed], ['toship', 'To ship', o => o.packed && !o.shipped], ['unpaid', 'Unpaid', o => !o.paid], ['all', 'All', () => true]];
+/* ລໍຖ້າຈັດ = paid or pickup-at-store, not packed yet · ລໍຖ້າສົ່ງ = packed, not shipped yet */
+const FILTERS = [['topack', 'ລໍຖ້າຈັດ', o => !o.packed && (o.paid || o.pickup)], ['toship', 'ລໍຖ້າສົ່ງ', o => o.packed && !o.shipped && !o.label], ['labels', '📮 ໃບສົ່ງ', o => !!o.label && !/^✅/.test(o.labelSent)], ['unpaid', 'ຍັງບໍ່ຈ່າຍ', o => !o.paid], ['all', 'ທັງໝົດ', () => true]];
+const labelPill = o => !o.label ? '' : /^✅/.test(o.labelSent) ? '<span class="pill y">✅ ສົ່ງໃບແລ້ວ</span>' : /^❌/.test(o.labelSent) ? '<span class="pill bad">❌ ສົ່ງໃບບໍ່ໄດ້</span>' : '<span class="pill">📮 ຍັງບໍ່ສົ່ງໃບ</span>';
 function renderList() {
   S.cur = null;
   $('#app').innerHTML = `
     <div class="filters">${FILTERS.map(f => `<button data-f="${f[0]}" class="${S.filter === f[0] ? 'on' : ''}">${f[1]} (${S.orders.filter(f[2]).length})</button>`).join('')}</div>
-    <div class="search"><input id="q" placeholder="Search order no, name, phone" value="${esc(S.q)}" inputmode="search"><button class="btn sm" data-act="refresh" title="Refresh">↻</button></div>
-    <div id="list"></div><div class="mute" style="text-align:center">Updated ${esc(S.at)}</div>`;
+    <div class="search"><input id="q" placeholder="ຄົ້ນຫາ ເລກອໍເດີ, ຊື່, ເບີໂທ" value="${esc(S.q)}" inputmode="search"><button class="btn sm" data-act="refresh" title="ໂຫຼດໃໝ່">↻</button></div>
+    ${S.filter === 'labels' ? sendAllBar() : ''}
+    <div id="list"></div><div class="mute" style="text-align:center">ອັບເດດ ${esc(S.at)}</div>`;
   $('#q').oninput = e => { S.q = e.target.value; renderCards(); };
   renderCards();
 }
@@ -247,11 +276,11 @@ function renderCards() {
   $('#list').innerHTML = list.length ? list.map(o => {
     const n = o.items.reduce((a, it) => a + it.qty, 0);
     return `<button class="card" data-open="${esc(o.no)}">
-      <div class="row"><span class="ono">#${esc(o.no)}</span><span class="mute">${n} item${n === 1 ? '' : 's'} · ${money(o.total)}</span></div>
-      <div style="overflow-wrap:anywhere">${esc(o.name) || '<span class="mute">(no name)</span>'}</div>
-      <div class="pills"><span class="pill ${o.packed ? 'y' : ''}">${o.packed ? '✓ ' : ''}Packed</span><span class="pill ${o.shipped ? 'y' : ''}">${o.shipped ? '✓ ' : ''}Shipped</span><span class="pill ${o.paid ? 'y' : ''}">${o.paid ? '✓ ' : ''}Paid</span></div>
+      <div class="row"><span class="ono">#${esc(o.no)}</span><span class="mute">${n} ລາຍການ · ${money(o.total)}</span></div>
+      <div style="overflow-wrap:anywhere">${esc(o.name) || '<span class="mute">(ບໍ່ມີຊື່)</span>'}</div>
+      <div class="pills"><span class="pill ${o.packed ? 'y' : ''}">${o.packed ? '✓ ' : ''}ຈັດແລ້ວ</span><span class="pill ${o.shipped ? 'y' : ''}">${o.shipped ? '✓ ' : ''}ສົ່ງແລ້ວ</span><span class="pill ${o.paid ? 'y' : ''}">${o.paid ? '✓ ' : ''}ຈ່າຍແລ້ວ</span>${o.pickup ? '<span class="pill p">🏪 ຮັບໜ້າຮ້ານ</span>' : ''}${labelPill(o)}${/^⚠/.test(o.labelBy) ? '<span class="pill w">⚠ ໃບສົ່ງຊ້ຳ</span>' : ''}</div>
     </button>`;
-  }).join('') : '<div class="center">No orders here.</div>';
+  }).join('') : '<div class="center">ບໍ່ມີອໍເດີ.</div>';
 }
 
 /* ---------- order ---------- */
@@ -276,45 +305,268 @@ function renderOrder() {
   const items = o.items.map((it, i) => {
     const c = o.packed ? it.qty : S.counts[i];
     const cls = c >= it.qty ? 'done' : c > 0 ? 'part' : 'none';
-    return `<div class="item"><div class="nm"><b>${esc(label(it))}</b><span class="mute">${esc(it.code)}${it.code && it.barcode ? ' · ' : ''}${esc(it.barcode) || '<i>no barcode</i>'}</span></div>
-      ${!o.packed && !it.barcode ? `<button class="btn sm" data-tick="${i}" ${B}>${S.counts[i] >= it.qty ? 'Untick' : '✓ Tick'}</button>` : ''}
+    return `<div class="item"><div class="nm"><b>${esc(label(it))}</b><span class="mute">${esc(it.code)}${it.code && it.barcode ? ' · ' : ''}${esc(it.barcode) || '<i>ບໍ່ມີບາໂຄດ</i>'}</span></div>
+      ${!o.packed && !it.barcode ? `<button class="btn sm" data-tick="${i}" ${B}>${S.counts[i] >= it.qty ? 'ຍົກເລີກ' : '✓ ໝາຍ'}</button>` : ''}
       ${!o.packed && it.barcode && S.counts[i] > 0 ? `<button class="btn sm" data-minus="${i}">−</button>` : ''}
       <div class="cnt ${cls}">${o.packed ? '✓ ' + it.qty : c + '/' + it.qty}</div></div>`;
   }).join('');
 
   $('#app').innerHTML = `
-    <button class="link" data-act="back">‹ All orders</button>
+    <button class="link" data-act="back">‹ ອໍເດີທັງໝົດ</button>
     <div class="section">
       <div class="row"><span class="ono">#${esc(o.no)}</span><span class="mute">${esc(S.tab)}</span></div>
       <div style="font-size:18px;font-weight:600;overflow-wrap:anywhere">${esc(o.name)}</div>
       ${o.phone ? `<div><a href="tel:${esc(o.phone)}">${esc(o.phone)}</a></div>` : ''}
       ${o.address ? `<div class="mute" style="overflow-wrap:anywhere">${esc(o.address)}</div>` : ''}
-      <div class="row" style="margin-top:6px"><span>Total <b>${money(o.total)}</b></span><span class="mute">Transferred ${money(o.transferred)}</span></div>
+      <div class="row" style="margin-top:6px"><span>ລວມ <b>${money(o.total)}</b></span><span class="mute">ໂອນແລ້ວ ${money(o.transferred)}</span></div>
       ${o.status ? `<div class="mute">${esc(o.status)}</div>` : ''}
-      ${o.tracking ? `<div class="mute">Tracking: ${esc(o.tracking)}</div>` : ''}
+      ${o.tracking ? `<div class="mute">ເລກພັດສະດຸ: ${esc(o.tracking)}</div>` : ''}
+      ${o.pickup ? '<div class="pills"><span class="pill p">🏪 ຮັບໜ້າຮ້ານ (ຍັງບໍ່ຈ່າຍ)</span></div>' : ''}
+      ${!o.packed && !o.paid && !o.pickup ? '<div class="warnbox">⚠ ອໍເດີນີ້ຍັງບໍ່ຈ່າຍ — ຈັດເມື່ອຈ່າຍແລ້ວ ຫຼື ເປັນຮັບໜ້າຮ້ານ</div>' : ''}
     </div>
     <div class="section">
-      <h4>ITEMS ${o.packed ? '' : `· ${got}/${need} checked`}</h4>
+      <h4>ລາຍການສິນຄ້າ ${o.packed ? '' : `· ກວດແລ້ວ ${got}/${need}`}</h4>
       ${o.packed ? '' : `<div class="progress"><div style="width:${need ? Math.round(got / need * 100) : 0}%"></div></div>`}
-      ${items || '<div class="mute">No items on this order.</div>'}
+      ${items || '<div class="mute">ອໍເດີນີ້ບໍ່ມີສິນຄ້າ.</div>'}
     </div>
     ${o.packed ? '' : `<div class="section">
-      ${done ? `<button class="btn ok full" data-act="pack" ${B}>✓ Mark packed</button>`
-             : `<button class="btn pri full" data-act="scan" ${B}>📷 Scan items</button>`}
+      ${done ? `<button class="btn ok full" data-act="pack" ${B}>✓ ບັນທຶກວ່າຈັດແລ້ວ</button>`
+             : `<button class="btn pri full" data-act="scan" ${B}>📷 ສະແກນສິນຄ້າ</button>`}
       <div class="row">
-        ${done ? '<button class="link" data-act="scan">Scan again</button>' : '<button class="link" data-act="override">Pack without full scan…</button>'}
-        ${got ? '<button class="link" data-act="reset">Reset scans</button>' : ''}
+        ${done ? '<button class="link" data-act="scan">ສະແກນອີກຄັ້ງ</button>' : '<button class="link" data-act="override">ຈັດໂດຍບໍ່ສະແກນຄົບ…</button>'}
+        ${got ? '<button class="link" data-act="reset">ລ້າງການສະແກນ</button>' : ''}
       </div>
     </div>`}
-    <div class="section"><h4>STATUS</h4>
-      <div class="st ${o.packed ? 'y' : ''}"><div><b>${o.packed ? '✓ Packed' : 'Not packed'}</b>${who(o.packedBy, o.packedAt)}</div>
-        ${o.packed ? `<button class="btn sm" data-undo="packed" ${B}>Undo</button>` : ''}</div>
-      <div class="st ${o.shipped ? 'y' : ''}"><div><b>${o.shipped ? '✓ Shipped' : 'Not shipped'}</b>${who(o.shippedBy, o.shippedAt)}</div>
-        ${o.shipped ? `<button class="btn sm" data-undo="shipped" ${B}>Undo</button>` : o.packed ? `<button class="btn sm pri" data-act="ship" ${B}>Mark shipped</button>` : '<span class="mute">pack first</span>'}</div>
-      <div class="st ${o.paid ? 'y' : ''}"><div><b>${o.paid ? '✓ Paid' : 'Not paid'}</b>${who(o.paidBy, o.paidAt)}</div>
-        ${o.paid ? `<button class="btn sm" data-undo="paid" ${B}>Undo</button>` : `<button class="btn sm pri" data-act="paid" ${B}>Mark paid</button>`}</div>
+    ${o.packed ? labelSection(o) : ''}
+    <div class="section"><h4>ສະຖານະ</h4>
+      <div class="st ${o.packed ? 'y' : ''}"><div><b>${o.packed ? '✓ ຈັດແລ້ວ' : 'ຍັງບໍ່ໄດ້ຈັດ'}</b>${who(o.packedBy, o.packedAt)}</div>
+        ${o.packed ? `<button class="btn sm" data-undo="packed" ${B}>ຍົກເລີກ</button>` : ''}</div>
+      <div class="st ${o.shipped ? 'y' : ''}"><div><b>${o.shipped ? '✓ ສົ່ງແລ້ວ / ຮັບແລ້ວ' : 'ຍັງບໍ່ໄດ້ສົ່ງ'}</b>${who(o.shippedBy, o.shippedAt)}</div>
+        ${o.shipped ? `<button class="btn sm" data-undo="shipped" ${B}>ຍົກເລີກ</button>` : o.packed ? `<button class="btn sm pri" data-act="ship" ${B}>ສົ່ງແລ້ວ / ຮັບແລ້ວ</button>` : '<span class="mute">ຈັດກ່ອນ</span>'}</div>
+      <div class="st ${o.paid ? 'y' : ''}"><div><b>${o.paid ? '✓ ຈ່າຍແລ້ວ' : 'ຍັງບໍ່ຈ່າຍ'}</b>${who(o.paidBy, o.paidAt)}</div>
+        ${o.paid ? `<button class="btn sm" data-undo="paid" ${B}>ຍົກເລີກ</button>` : `<button class="btn sm pri" data-act="paid" ${B}>ຈ່າຍແລ້ວ</button>`}</div>
     </div>`;
 }
+
+/* ---------- shipping label photo → customer on WhatsApp ---------- */
+S.labelFile = {};
+function labelSection(o) {
+  const f = S.labelFile[o.no];
+  if (!o.label) return `<div class="section"><h4>ໃບສົ່ງເຄື່ອງ</h4>
+      <button class="btn pri full" data-act="labelshot">📷 ຖ່າຍຮູບໃບສົ່ງ</button></div>`;
+  if (!f && !f0[o.no]) { f0[o.no] = 1; fetchLabel(o); }
+  const sent = o.labelSent;
+  return `<div class="section"><h4>ໃບສົ່ງເຄື່ອງ</h4>
+      ${f ? `<img class="lblimg" src="${f.url}" alt="">` : `<a href="https://drive.google.com/file/d/${esc(o.label)}/view" target="_blank">📷 ເບິ່ງຮູບໃບສົ່ງ</a>`}
+      ${/^⚠/.test(o.labelBy) ? `<div class="warnbox">${esc(o.labelBy)}</div>` : `<div class="mute">${esc(o.labelBy)}</div>`}
+      ${sent ? `<div class="lblstate">${esc(sent)}</div><div class="mute">${esc(o.labelSentBy)}</div>` : '<div class="lblstate">📮 ຍັງບໍ່ໄດ້ສົ່ງໃຫ້ລູກຄ້າ</div>'}
+      <div class="mute">WhatsApp: ${waNumber(o) ? esc('+' + waNumber(o)) : '<b style="color:#991b1b">ບໍ່ມີເບີໂທ</b>'}</div>
+      ${/^✅/.test(sent) ? '' : `<button class="btn ok full" data-act="labelshare" ${f && waNumber(o) ? '' : 'disabled'}>📤 ສົ່ງທາງ WhatsApp</button>
+      <div class="row" style="margin-top:8px"><button class="btn sm" data-act="labelok" style="flex:1">✅ ສົ່ງແລ້ວ</button><button class="btn sm" data-act="labelfail" style="flex:1">❌ ສົ່ງບໍ່ໄດ້</button></div>`}
+      <div class="row"><button class="link" data-act="labelshot">ຖ່າຍໃໝ່</button>${sent ? '<button class="link" data-act="labelclear">ລ້າງສະຖານະການສົ່ງ</button>' : ''}</div>
+    </div>`;
+}
+const f0 = {};
+async function fetchLabel(o) {
+  try {
+    const r = await api('apiLabelImg', { id: o.label });
+    const bin = atob(r.data), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    setLabelFile(o.no, new File([u8], 'label-' + o.no + '.jpg', { type: 'image/jpeg' }));
+    if (S.cur && S.cur.no === o.no) renderOrder(); else if (S.queue && qOrder() && qOrder().no === o.no) renderQueue();
+  } catch (e) { delete f0[o.no]; }
+}
+function setLabelFile(no, file) {
+  const old = S.labelFile[no]; if (old) try { URL.revokeObjectURL(old.url); } catch (e) {}
+  const rec = { file, url: URL.createObjectURL(file) };
+  rec.png = loadImg(file).then(img => new Promise(r => { const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0); c.toBlob(r, 'image/png'); }));
+  rec.png.catch(() => {});
+  S.labelFile[no] = rec;
+}
+function shrinkPhoto(file) {
+  return loadImg(file).then(img => {
+    const s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    try { URL.revokeObjectURL(img.src); } catch (e) {}
+    return new Promise(r => c.toBlob(b => r(new File([b], 'label.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.8));
+  });
+}
+const toB64 = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+async function uploadLabel(raw) {
+  const o = S.cur; if (!o) return;
+  toast('ກຳລັງອ່ານໃບສົ່ງ…', 4000);
+  let file, tracking = '';
+  try { file = await shrinkPhoto(raw); } catch (e) { toast('⚠ ເປີດຮູບບໍ່ໄດ້'); return; }
+  try { tracking = await readPhoto(raw); } catch (e) {}
+  if (tracking.length > 30 || /[\/\s:]/.test(tracking)) tracking = '';
+  if (/^\d{12,13}$/.test(tracking) && /^(4|8)/.test(tracking) && o.items.some(it => it.barcode === tracking.replace(/^0+/, ''))) tracking = '';
+  const data = await toB64(file);
+  const send = async extra => {
+    toast('ກຳລັງບັນທຶກໃບສົ່ງ…', 8000); S.pending++;
+    try { return await apiPost(Object.assign({ action: 'label', tab: S.tab, orderNo: o.no, staff: S.staff, data, tracking }, extra)); }
+    finally { S.pending--; }
+  };
+  try {
+    let r = await send({});
+    if (r.duplicate === 'order') {
+      if (!(await confirmBox('ອໍເດີ #' + o.no + ' ມີຮູບໃບສົ່ງແລ້ວ. ແທນທີ່ດ້ວຍຮູບໃໝ່ບໍ?'))) return;
+      r = await send({ replace: true });
+    }
+    if (r.duplicate === 'other') {
+      beep(220, .45); vib([200, 100, 200]);
+      if (!(await confirmBox('⚠ ໃບສົ່ງນີ້ຂຽນອໍເດີ #' + r.other + ' — ບໍ່ແມ່ນ #' + o.no + '\n\nບັນທຶກໃສ່ #' + o.no + ' ຢູ່ດີບໍ?'))) { toast('ຍົກເລີກແລ້ວ — ບໍ່ໄດ້ບັນທຶກ'); return; }
+      r = await send({ force: true, replace: true, dupOf: r.other });
+    }
+    if (r.duplicate === 'photo' || r.duplicate === 'tracking') {
+      beep(220, .45); vib([200, 100, 200]);
+      const msg = r.duplicate === 'photo' ? '⚠ ຮູບນີ້ອັບໂຫຼດແລ້ວ ໃນອໍເດີ #' + r.other : '⚠ ໃບສົ່ງນີ້' + ((r.tracking || tracking) ? ' (' + (r.tracking || tracking) + ')' : '') + ' ຖືກໃຊ້ແລ້ວ ໃນອໍເດີ #' + r.other;
+      if (!(await confirmBox(msg + '\n\nບັນທຶກຢູ່ດີບໍ? (ຈະໝາຍວ່າ ⚠ ຊ້ຳ)'))) { toast('ຍົກເລີກແລ້ວ — ບໍ່ໄດ້ບັນທຶກ'); return; }
+      r = await send({ force: true, replace: true, dupOf: r.other });
+    }
+    setLabelFile(o.no, file); f0[o.no] = 1;
+    if (r.order) { const i = S.orders.findIndex(x => x.no === r.order.no); if (i >= 0) S.orders[i] = r.order; if (S.cur && S.cur.no === r.order.no) S.cur = r.order; }
+    renderOrder(); toast('✓ ບັນທຶກໃບສົ່ງແລ້ວ — ຍ້າຍໄປ 📮 ໃບສົ່ງ' + (tracking ? ' · ' + tracking : ''), 3000); beep(1000, .12); vib(60);
+  } catch (e) { toast('⚠ ບັນທຶກບໍ່ໄດ້: ' + errMsg(e), 6000); beep(220, .4); }
+}
+function labelMessage(o) {
+  return 'ສະບາຍດີ ' + o.name + ' 🙏\nMakoto ສົ່ງເຄື່ອງອໍເດີ #' + o.no + ' ໃຫ້ແລ້ວ' + (o.tracking ? '\nເລກພັດສະດຸ: ' + o.tracking : '') + '\n📷 ຮູບໃບສົ່ງເຄື່ອງຢູ່ລຸ່ມນີ້\nຂອບໃຈທີ່ອຸດໜູນ 💛';
+}
+/* Customer WhatsApp number: from the label (server) or the phone column. '' if none. */
+function waNumber(o) {
+  let p = String(o.labelPhone || '').replace(/\D/g, '');
+  if (!p) {
+    const d = String(o.phone || '').replace(/\D/g, '').replace(/^856/, '').replace(/^0/, '');
+    if (/^20\d{8}$/.test(d) || /^30\d{7}$/.test(d)) p = '856' + d; else if (/^\d{8}$/.test(d)) p = '85620' + d;
+  }
+  return /^856(20|30)?0+$/.test(p) || p.length < 10 ? '' : p;
+}
+/* Copies the label photo, then opens the customer's WhatsApp chat with the message typed in.
+   Must run straight from a tap (phones only allow copying a photo during a tap). */
+function waSend(o) {
+  o = o || S.cur; const f = o && S.labelFile[o.no], num = o && waNumber(o);
+  if (!f || !num) { toast(num ? 'ກຳລັງໂຫຼດຮູບ… ລອງໃໝ່' : 'ບໍ່ມີເບີ WhatsApp'); return false; }
+  let copied = false;
+  try {
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      navigator.clipboard.write([new ClipboardItem({ 'image/png': f.png })]).catch(() => {});
+      copied = true;
+    }
+  } catch (e) {}
+  const text = encodeURIComponent(labelMessage(o));
+  S.waPending = o.no;
+  toast(copied ? '📋 ຮູບຖືກ copy ແລ້ວ — ໃນ WhatsApp: ສົ່ງຂໍ້ຄວາມ, ແລ້ວກົດຄ້າງຊ່ອງພິມ → Paste → ສົ່ງຮູບ' : 'ສົ່ງຂໍ້ຄວາມ ແລ້ວແນບຮູບໃບສົ່ງ', 8000);
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  setTimeout(() => { location.href = mobile ? 'whatsapp://send?phone=' + num + '&text=' + text : 'https://wa.me/' + num + '?text=' + text; }, 250);
+  return true;
+}
+/* Back from WhatsApp → ask whether it was sent. */
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !S.waPending) return;
+  const no = S.waPending; S.waPending = null;
+  const o = S.orders.find(x => x.no === no) || (S.cur && S.cur.no === no ? S.cur : null); if (!o) return;
+  await new Promise(r => setTimeout(r, 400));
+  const r = await askSent(o);
+  if (S.queue && S.queue.nos[S.queue.i] === no) qNext(r);
+});
+
+/* Returns 'ok', 'fail' or '' (later). */
+async function askSent(o) {
+  o = o || S.cur; if (!o) return '';
+  const v = await dialog(`<h3>ສົ່ງໃບສົ່ງໃຫ້ ${esc(o.name)} ສຳເລັດບໍ?</h3><div class="choice">
+      <button class="btn ok" data-v="ok">✅ ສົ່ງແລ້ວ</button><button class="btn" data-v="fail">❌ ສົ່ງບໍ່ໄດ້</button><button class="btn" data-v="">ພາຍຫຼັງ</button></div>`,
+    done => document.querySelectorAll('#modalBody [data-v]').forEach(b => b.onclick = () => done(b.dataset.v)));
+  if (v === 'ok') { await labelSent(o, true); return 'ok'; }
+  if (v === 'fail') { const r = await failReason(); if (r) { await labelSent(o, false, r); return 'fail'; } }
+  return '';
+}
+async function failReason() {
+  const reasons = ['ເບີນີ້ບໍ່ມີ WhatsApp', 'ບໍ່ມີເບີໂທ', 'ເບີໂທຜິດ', 'ລູກຄ້າບລັອກ'];
+  return dialog(`<h3>ເປັນຫຍັງສົ່ງບໍ່ໄດ້?</h3><div class="choice">${reasons.map(x => `<button class="btn" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <input class="txt" id="dlgIn" placeholder="ອື່ນໆ (ພິມເຫດຜົນ)"><div class="row"><button class="btn" id="dlgNo">ຍົກເລີກ</button><button class="btn pri" id="dlgOk">ບັນທຶກ</button></div>`,
+    done => {
+      document.querySelectorAll('#modalBody [data-v]').forEach(b => b.onclick = () => done(b.dataset.v));
+      $('#dlgNo').onclick = () => done(null); $('#dlgOk').onclick = () => { const t = $('#dlgIn').value.trim(); if (t) done(t); };
+    });
+}
+const rerender = o => { if (S.cur && S.cur.no === o.no) renderOrder(); else if (S.queue) renderQueue(); };
+async function labelSent(o, ok, reason, clear) {
+  if (!o) return;
+  const before = [o.labelSent, o.labelSentBy];
+  o.labelSent = clear ? '' : ok ? '✅ ສົ່ງແລ້ວ (WhatsApp)' : '❌ ສົ່ງບໍ່ໄດ້: ' + reason; o.labelSentBy = clear ? '' : S.staff + ' ' + nowText();
+  rerender(o); S.pending++;
+  try {
+    const r = await api('apiLabelSent', { tab: S.tab, orderNo: o.no, staff: S.staff, ok, reason, clear: !!clear });
+    if (r.order) { const i = S.orders.findIndex(x => x.no === r.order.no); if (i >= 0) S.orders[i] = r.order; if (S.cur && S.cur.no === r.order.no) { S.cur = r.order; renderOrder(); } }
+    toast('✓ ບັນທຶກລົງຊີດແລ້ວ', 1200);
+  } catch (e) { o.labelSent = before[0]; o.labelSentBy = before[1]; rerender(o); toast('⚠ ບັນທຶກບໍ່ໄດ້: ' + errMsg(e), 6000); }
+  finally { S.pending--; }
+}
+
+/* ---------- 📤 send all: one label after another ---------- */
+const toSend = () => S.orders.filter(o => o.label && !o.labelSent);
+S.problems = [];
+function sendAllBar() {
+  const n = toSend().length, bad = S.orders.filter(o => /^❌/.test(o.labelSent)).length;
+  return `<div class="section">
+      <button class="btn ok full" data-act="qstart" ${n ? '' : 'disabled'}>📤 ສົ່ງທັງໝົດ (${n})</button>
+      ${bad ? `<div class="warnbox">❌ ສົ່ງບໍ່ໄດ້ ${bad} ອໍເດີ — ເປີດອໍເດີເພື່ອລອງໃໝ່</div>` : ''}</div>
+    ${(S.problems || []).length ? `<div class="section"><h4>ຮູບທີ່ມີບັນຫາ (${S.problems.length})</h4>${S.problems.map(p => `
+      <div class="item" style="flex-wrap:wrap"><div class="nm"><b>${p.kind === 'dup' ? '⚠ ຊ້ຳ' : '❓ ອ່ານບໍ່ໄດ້'}</b><span class="mute">${esc(p.why)} · ${esc(p.at)}</span>
+        <a href="https://drive.google.com/file/d/${esc(p.id)}/view" target="_blank">📷 ເບິ່ງຮູບ</a></div>
+        <button class="btn sm" data-assign="${esc(p.id)}">ໃສ່ເລກອໍເດີ</button><button class="btn sm" data-dismiss="${esc(p.id)}">ລຶບອອກ</button></div>`).join('')}</div>` : ''}`;
+}
+function startQueue() {
+  const list = toSend();
+  if (!list.length) { toast('ບໍ່ມີໃບສົ່ງທີ່ຍັງບໍ່ໄດ້ສົ່ງ'); return; }
+  S.cur = null; S.queue = { nos: list.map(o => o.no), i: 0, ok: 0, fail: 0, skip: 0, skipped: [], failed: [] };
+  renderQueue(); window.scrollTo(0, 0);
+}
+const qOrder = () => S.queue && S.orders.find(o => o.no === S.queue.nos[S.queue.i]);
+function ensureLabel(o) { if (o && o.label && !S.labelFile[o.no] && !f0[o.no]) { f0[o.no] = 1; fetchLabel(o); } }
+async function assignLabel(id) {
+  const no = await ask('ໃສ່ເລກອໍເດີ', 'ເບິ່ງຊື່ຜູ້ຮັບໃນໃບສົ່ງ ແລ້ວພິມເລກອໍເດີ', '', 'tel'); if (!no || !no.trim()) return;
+  try {
+    let r = await api('apiLabelAssign', { id, orderNo: no.trim(), staff: S.staff });
+    if (r.duplicate === 'order') { if (!(await confirmBox('ອໍເດີ #' + no + ' ມີໃບສົ່ງແລ້ວ. ແທນທີ່ບໍ?'))) return; r = await api('apiLabelAssign', { id, orderNo: no.trim(), staff: S.staff, replace: true }); }
+    toast('✓ ໃສ່ໃບສົ່ງໃຫ້ອໍເດີ #' + no + ' ແລ້ວ'); loadOrders(true);
+  } catch (e) { toast('⚠ ' + errMsg(e), 5000); }
+}
+function renderQueue() {
+  const q = S.queue; if (!q) return renderList();
+  if (q.i >= q.nos.length) {
+    $('#app').innerHTML = `<div class="section" style="text-align:center"><h3>📤 ສົ່ງທັງໝົດ ສຳເລັດ</h3>
+        <div style="font-size:18px">✅ ສົ່ງແລ້ວ ${q.ok} · ❌ ສົ່ງບໍ່ໄດ້ ${q.fail} · ຂ້າມ ${q.skip}</div>
+        ${q.failed.length ? `<div class="warnbox" style="text-align:left">❌ ສົ່ງບໍ່ໄດ້: ${q.failed.map(x => '#' + esc(x)).join(', ')}</div>` : ''}
+        ${q.skipped.length ? `<div class="mute" style="margin-top:6px">ຂ້າມ: ${q.skipped.map(x => '#' + esc(x)).join(', ')}</div>` : ''}
+        <button class="btn pri full" data-act="qstop" style="margin-top:12px">ກັບໄປລາຍການ</button></div>`;
+    return;
+  }
+  const o = qOrder(); if (!o) { q.i++; return renderQueue(); }
+  q.nos.slice(q.i, q.i + 3).forEach(no => ensureLabel(S.orders.find(x => x.no === no)));
+  const f = S.labelFile[o.no], done = q.i;
+  $('#app').innerHTML = `
+    <button class="link" data-act="qstop">‹ ຢຸດ</button>
+    <div class="section">
+      <div class="row"><b>📤 ສົ່ງທັງໝົດ</b><span class="mute">${q.i + 1} / ${q.nos.length}</span></div>
+      <div class="progress"><div style="width:${Math.round(done / q.nos.length * 100)}%"></div></div>
+      <div class="row"><span class="ono">#${esc(o.no)}</span><span class="mute">${esc(o.tracking)}</span></div>
+      <div style="font-size:20px;font-weight:700;overflow-wrap:anywhere">${esc(o.name)}</div>
+      ${/^⚠/.test(o.labelBy) ? `<div class="warnbox">${esc(o.labelBy)}</div>` : ''}
+      ${f ? `<img class="lblimg" src="${f.url}" alt="">` : '<div class="center">ກຳລັງໂຫຼດຮູບ…</div>'}
+      <div class="mute">WhatsApp: ${waNumber(o) ? esc('+' + waNumber(o)) : '<b style="color:#991b1b">ບໍ່ມີເບີໂທ — ກົດ ❌ ຫຼື ຂ້າມ</b>'}</div>
+      <button class="btn ok full" data-act="qsend" ${f && waNumber(o) ? '' : 'disabled'}>📤 ສົ່ງທາງ WhatsApp</button>
+      <div class="row" style="margin-top:8px"><button class="btn sm" data-act="qfail" style="flex:1">❌ ສົ່ງບໍ່ໄດ້</button><button class="btn sm" data-act="qskip" style="flex:1">ຂ້າມ ›</button></div>
+      <div class="mute" style="margin-top:8px;text-align:center">✅ ${q.ok} · ❌ ${q.fail} · ຂ້າມ ${q.skip}</div>
+    </div>`;
+}
+function qNext(r) {
+  const q = S.queue; if (!q) return; const no = q.nos[q.i];
+  if (r === 'ok') q.ok++; else if (r === 'fail') { q.fail++; q.failed.push(no); } else { q.skip++; q.skipped.push(no); }
+  q.i++; renderQueue(); window.scrollTo(0, 0);
+}
+function qSend() { const o = qOrder(); if (o) waSend(o); }
+async function qFail() { const o = qOrder(); if (!o) return; const r = await failReason(); if (r) { await labelSent(o, false, r); qNext('fail'); } }
 
 function nowText() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
@@ -324,12 +576,12 @@ function nowText() {
 async function update(action, value, extra) {
   const o = S.cur; if (!o) return;
   const key = { packed: 'packed', shipped: 'shipped', paid: 'paid' }[action];
-  const before = { v: o[key], by: o[key + 'By'], at: o[key + 'At'], tracking: o.tracking, checked: o.checked };
+  const before = { v: o[key], by: o[key + 'By'], at: o[key + 'At'], tracking: o.tracking };
   o[key] = value; o[key + 'By'] = value ? S.staff : ''; o[key + 'At'] = value ? nowText() : '';
   if (action === 'shipped' && value && extra && extra.tracking) o.tracking = extra.tracking;
-  if (action === 'packed') { o.checked = value && !!(extra && extra.verified); if (value) store.del(scanKey(o)); else S.counts = o.items.map(() => 0); }
+  if (action === 'packed') { if (value) store.del(scanKey(o)); else S.counts = o.items.map(() => 0); }
   if (S.cur === o) renderOrder();
-  toast((value ? '✓ ' : 'Undone: ') + action + ' · saving…', 1500); vib(60);
+  toast((value ? '✓ ' : 'ຍົກເລີກ: ') + ACT_LA[action] + ' · ກຳລັງບັນທຶກ…', 1500); vib(60);
   S.pending++;
   try {
     const r = await api('apiUpdate', Object.assign({ tab: S.tab, orderNo: o.no, action, value, staff: S.staff }, extra || {}));
@@ -338,25 +590,22 @@ async function update(action, value, extra) {
       if (i >= 0) S.orders[i] = r.order;
       if (S.cur && S.cur.no === r.order.no) { S.cur = r.order; renderOrder(); }
     }
-    toast('✓ Saved to sheet', 1200); setLive(true);
+    toast('✓ ບັນທຶກລົງຊີດແລ້ວ', 1200); setLive(true);
   } catch (e) {
-    o[key] = before.v; o[key + 'By'] = before.by; o[key + 'At'] = before.at; o.tracking = before.tracking; o.checked = before.checked;
+    o[key] = before.v; o[key + 'By'] = before.by; o[key + 'At'] = before.at; o.tracking = before.tracking;
     if (S.cur === o) renderOrder();
-    toast('⚠ Not saved: ' + errMsg(e), 6000); beep(220, .4); setLive(false);
+    toast('⚠ ບັນທຶກບໍ່ໄດ້: ' + errMsg(e), 6000); beep(220, .4); setLive(false);
   } finally {
     S.pending--;
     if (!S.pending) setTimeout(poll, 400);
   }
 }
+const ACT_LA = { packed: 'ຈັດແລ້ວ', shipped: 'ສົ່ງແລ້ວ', paid: 'ຈ່າຍແລ້ວ' };
 async function doPack(override) {
-  const o = S.cur; let reason = '';
-  if (override) {
-    reason = await ask('Pack without full scan', 'Reason (e.g. barcode missing, label damaged). This is saved in the Pack Log.', '');
-    if (reason === null) return;
-    if (!reason.trim()) { toast('Please give a reason'); return; }
-  }
-  const details = o.items.map((it, i) => (it.code || it.barcode || '?') + ' ' + S.counts[i] + '/' + it.qty).join(', ') + (override ? ' | OVERRIDE: ' + reason.trim() : ' | scan-verified');
-  await update('packed', true, { verified: !override, details });
+  const o = S.cur;
+  if (override && !(await confirmBox('ຈັດອໍເດີ #' + o.no + ' ໂດຍບໍ່ສະແກນຄົບ?'))) return;
+  if (!o.paid && !o.pickup && !(await confirmBox('ອໍເດີ #' + o.no + ' ຍັງບໍ່ຈ່າຍ. ຈັດເລີຍບໍ?'))) return;
+  await update('packed', true, { verified: !override });
 }
 
 /* ---------- scanning ---------- */
@@ -369,8 +618,8 @@ function zx() {
     if (window.ZXingWASM) return res(window.ZXingWASM);
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/iife/reader/index.js';
-    s.onload = () => window.ZXingWASM ? res(window.ZXingWASM) : rej(new Error('Scanner engine missing'));
-    s.onerror = () => { zxReady = null; rej(new Error('Scanner engine could not load. Check internet, then close and reopen the scanner.')); };
+    s.onload = () => window.ZXingWASM ? res(window.ZXingWASM) : rej(new Error('ໂຫຼດຕົວສະແກນບໍ່ໄດ້'));
+    s.onerror = () => { zxReady = null; rej(new Error('ໂຫຼດຕົວສະແກນບໍ່ໄດ້. ກວດອິນເຕີເນັດ ແລ້ວປິດ-ເປີດໜ້າສະແກນໃໝ່.')); };
     document.head.appendChild(s);
   });
   return zxReady;
@@ -389,20 +638,20 @@ function handleCode(raw) {
   const idx = o.items.map((_, i) => i).filter(i => matches(o.items[i], key));
   if (!idx.length) {
     const nm = S.names[key];
-    flash('bad', '✗ NOT in this order' + (nm ? ': ' + nm : '') + ' (' + text + ')');
+    flash('bad', '✗ ບໍ່ມີໃນອໍເດີນີ້' + (nm ? ': ' + nm : '') + ' (' + text + ')');
     beep(220, .45); vib([200, 100, 200]); return;
   }
   const i = idx.find(j => S.counts[j] < o.items[j].qty);
   if (i === undefined) {
     const it = o.items[idx[0]];
-    flash('warn', '⚠ Too many — order needs only ' + it.qty + ' × ' + label(it));
+    flash('warn', '⚠ ເກີນ — ອໍເດີຕ້ອງການພຽງ ' + it.qty + ' × ' + label(it));
     beep(440, .3); vib([100, 60, 100]); return;
   }
   S.counts[i]++; S.hist.push(i); saveScan();
   const it = o.items[i];
   renderScanItems(); renderOrder();
   if (complete()) {
-    flash('ok', '✓ All items matched!'); beep(1200, .12); setTimeout(() => beep(1600, .2), 160); vib(200);
+    flash('ok', '✓ ຄົບທຸກລາຍການແລ້ວ!'); beep(1200, .12); setTimeout(() => beep(1600, .2), 160); vib(200);
     setTimeout(closeScanner, 1200);
   } else {
     flash('ok', '✓ ' + label(it) + '  ' + S.counts[i] + '/' + it.qty); beep(1000, .12); vib(60);
@@ -410,10 +659,10 @@ function handleCode(raw) {
 }
 function renderScanItems() {
   const o = S.cur; if (!o) return;
-  $('#scanTitle').textContent = 'Order #' + o.no;
+  $('#scanTitle').textContent = 'ອໍເດີ #' + o.no;
   $('#scanItems').innerHTML = o.items.map((it, i) => {
     const c = S.counts[i], cls = c >= it.qty ? 'done' : c > 0 ? 'part' : 'none';
-    return `<div class="item"><div class="nm"><b>${esc(label(it))}</b><span class="mute">${esc(it.code)} ${esc(it.barcode) || '<i>no barcode — tick on order screen</i>'}</span></div><div class="cnt ${cls}">${c}/${it.qty}</div></div>`;
+    return `<div class="item"><div class="nm"><b>${esc(label(it))}</b><span class="mute">${esc(it.code)} ${esc(it.barcode) || '<i>ບໍ່ມີບາໂຄດ — ໝາຍຢູ່ໜ້າອໍເດີ</i>'}</span></div><div class="cnt ${cls}">${c}/${it.qty}</div></div>`;
   }).join('');
 }
 const cam = { stream: null, track: null, timer: null, busy: false, n: 0, torch: false };
@@ -422,27 +671,27 @@ const gctx = grab.getContext('2d', { willReadFrequently: true });
 function camErr(m) { const el = $('#camErr'); el.textContent = m; el.classList.remove('hidden'); }
 function camMessage(e) {
   const n = (e && e.name) || '';
-  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Camera is blocked. iPhone: tap "aA" in the Safari address bar → Website Settings → Camera → Allow, then reload. If you opened this link inside LINE, Messenger or Facebook, open it in Safari or Chrome instead.';
-  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'No back camera found on this device.';
-  if (n === 'NotReadableError') return 'The camera is being used by another app. Close other camera apps and try again.';
-  return 'Camera could not start (' + errMsg(e) + ').';
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'ກ້ອງຖືກບລັອກ. iPhone: ກົດ "aA" ໃນແຖບທີ່ຢູ່ Safari → ການຕັ້ງຄ່າເວັບໄຊ → ກ້ອງ → ອະນຸຍາດ, ແລ້ວໂຫຼດໜ້າໃໝ່. ຖ້າເປີດລິ້ງໃນ LINE, Messenger ຫຼື Facebook ໃຫ້ເປີດໃນ Safari ຫຼື Chrome ແທນ.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'ບໍ່ພົບກ້ອງຫຼັງໃນເຄື່ອງນີ້.';
+  if (n === 'NotReadableError') return 'ກ້ອງກຳລັງຖືກໃຊ້ໂດຍແອັບອື່ນ. ປິດແອັບກ້ອງອື່ນ ແລ້ວລອງໃໝ່.';
+  return 'ເປີດກ້ອງບໍ່ໄດ້ (' + errMsg(e) + ').';
 }
 async function openScanner() {
   S.last = { c: '', t: 0 };
   $('#scanner').classList.remove('hidden'); $('#camErr').classList.add('hidden');
-  flash('', 'Starting camera…'); renderScanItems();
+  flash('', 'ກຳລັງເປີດກ້ອງ…'); renderScanItems();
   try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume && AC.resume(); } catch (e) {}
   zx().catch(e => camErr(errMsg(e)));
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return camErr('This browser cannot use the camera. Open the link in Safari (iPhone) or Chrome (Android).');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return camErr('ບຣາວເຊີນີ້ໃຊ້ກ້ອງບໍ່ໄດ້. ເປີດລິ້ງໃນ Safari (iPhone) ຫຼື Chrome (Android).');
   try {
     cam.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
-  } catch (e) { cam.stream = null; flash('', 'Camera off — use “From photo” or type the code'); return camErr(camMessage(e)); }
+  } catch (e) { cam.stream = null; flash('', 'ກ້ອງປິດ — ໃຊ້ “ຈາກຮູບ” ຫຼື ພິມລະຫັດ'); return camErr(camMessage(e)); }
   if ($('#scanner').classList.contains('hidden')) { stopCamera(); return; }
   const v = $('#cam'); v.muted = true; v.setAttribute('playsinline', ''); v.srcObject = cam.stream;
   try { await v.play(); } catch (e) {}
   cam.track = cam.stream.getVideoTracks()[0];
   tuneCamera();
-  flash('', 'Point at a barcode inside the box — hold 15–30 cm away');
+  flash('', 'ສ່ອງບາໂຄດໃຫ້ຢູ່ໃນກອບ — ຫ່າງ 15–30 ຊມ');
   cam.n = 0; loop();
 }
 async function tuneCamera() {
@@ -488,7 +737,7 @@ function loadImg(file) {
   return new Promise((res, rej) => {
     const u = URL.createObjectURL(file), i = new Image();
     i.onload = () => res(i);
-    i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Cannot open photo')); };
+    i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('ເປີດຮູບບໍ່ໄດ້')); };
     i.src = u;
   });
 }
@@ -511,7 +760,7 @@ async function readPhoto(file) {
       if (t) return t;
     }
   } finally { try { URL.revokeObjectURL(img.src); } catch (_) {} }
-  throw new Error('No barcode found');
+  throw new Error('ບໍ່ພົບບາໂຄດ');
 }
 async function closeScanner() {
   stopCamera();
@@ -520,22 +769,34 @@ async function closeScanner() {
 
 /* ---------- events ---------- */
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-f],[data-open],[data-act],[data-undo],[data-tick],[data-minus]'); if (!t) return;
+  const t = e.target.closest('[data-f],[data-open],[data-act],[data-undo],[data-tick],[data-minus],[data-assign],[data-dismiss]'); if (!t) return;
   const d = t.dataset;
   if (d.f) { S.filter = d.f; renderList(); return; }
+  if (d.assign) { assignLabel(d.assign); return; }
+  if (d.dismiss) { if (await confirmBox('ລຶບຮູບນີ້ອອກຈາກລາຍການ? (ຮູບຍັງຢູ່ໃນ Drive)')) { S.problems = S.problems.filter(p => p.id !== d.dismiss); renderList(); api('apiLabelDismiss', { id: d.dismiss }).catch(e => toast('⚠ ' + errMsg(e))); } return; }
   if (d.open) { openOrder(d.open); return; }
   if (d.tick !== undefined) { const i = +d.tick, it = S.cur.items[i]; S.counts[i] = S.counts[i] >= it.qty ? 0 : it.qty; saveScan(); renderOrder(); return; }
   if (d.minus !== undefined) { const i = +d.minus; if (S.counts[i] > 0) S.counts[i]--; saveScan(); renderOrder(); return; }
-  if (d.undo) { if (await confirmBox('Undo “' + d.undo + '” for order #' + S.cur.no + '?')) update(d.undo, false); return; }
+  if (d.undo) { if (await confirmBox('ຍົກເລີກ “' + ACT_LA[d.undo] + '” ຂອງອໍເດີ #' + S.cur.no + '?')) update(d.undo, false); return; }
   switch (d.act) {
-    case 'back': S.cur = null; renderList(); loadOrders(true); break;
+    case 'back': S.cur = null; S.queue = null; renderList(); loadOrders(true); break;
     case 'refresh': loadOrders(); break;
     case 'scan': openScanner(); break;
     case 'pack': doPack(false); break;
     case 'override': doPack(true); break;
-    case 'reset': if (await confirmBox('Clear the scanned counts for this order?')) { S.counts = S.cur.items.map(() => 0); saveScan(); renderOrder(); } break;
-    case 'ship': { const tr = await ask('Mark shipped', 'Tracking number (optional)', S.cur.tracking || ''); if (tr !== null) update('shipped', true, { tracking: tr.trim() }); break; }
-    case 'paid': if (await confirmBox('Mark order #' + S.cur.no + ' as paid?')) update('paid', true); break;
+    case 'reset': if (await confirmBox('ລ້າງຈຳນວນທີ່ສະແກນຂອງອໍເດີນີ້?')) { S.counts = S.cur.items.map(() => 0); saveScan(); renderOrder(); } break;
+    case 'ship': { const tr = await ask('ສົ່ງແລ້ວ / ຮັບແລ້ວ · ອໍເດີ #' + S.cur.no, 'ເລກພັດສະດຸ (ບໍ່ໃສ່ກໍໄດ້)', S.cur.tracking || ''); if (tr !== null) update('shipped', true, { tracking: tr.trim() }); break; }
+    case 'labelshot': $('#labelIn').click(); break;
+    case 'labelshare': waSend(S.cur); break;
+    case 'labelok': labelSent(S.cur, true); break;
+    case 'labelfail': { const r = await failReason(); if (r) labelSent(S.cur, false, r); break; }
+    case 'labelclear': if (await confirmBox('ລ້າງສະຖານະການສົ່ງໃບຂອງອໍເດີ #' + S.cur.no + '?')) labelSent(S.cur, false, '', true); break;
+    case 'qstart': startQueue(); break;
+    case 'qsend': qSend(); break;
+    case 'qfail': qFail(); break;
+    case 'qskip': qNext(''); break;
+    case 'qstop': S.queue = null; S.filter = 'labels'; renderList(); break;
+    case 'paid': if (await confirmBox('ບັນທຶກວ່າອໍເດີ #' + S.cur.no + ' ຈ່າຍແລ້ວ?')) update('paid', true); break;
   }
 });
 $('#scanClose').onclick = closeScanner;
@@ -548,18 +809,19 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && cam
 setTimeout(() => { zx().then(Z => Z.readBarcodes(new ImageData(8, 8), { formats: ['EAN-13'] })).catch(() => {}); }, 1500);
 $('#undoBtn').onclick = () => {
   const i = S.hist.pop();
-  if (i === undefined) { flash('', 'Nothing to undo'); return; }
+  if (i === undefined) { flash('', 'ບໍ່ມີຫຍັງໃຫ້ຍົກເລີກ'); return; }
   if (S.counts[i] > 0) S.counts[i]--; saveScan(); renderScanItems(); renderOrder();
-  flash('warn', '↶ Removed one ' + label(S.cur.items[i]));
+  flash('warn', '↶ ລົບອອກ 1 ' + label(S.cur.items[i]));
 };
 $('#manualF').onsubmit = e => { e.preventDefault(); const v = $('#manualIn').value; $('#manualIn').value = ''; handleCode(v); };
 $('#photoIn').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  flash('', 'Reading photo…');
+  flash('', 'ກຳລັງອ່ານຮູບ…');
   try { handleCode(await readPhoto(f)); }
-  catch (err) { flash('bad', '✗ No barcode found in photo'); beep(220, .3); }
+  catch (err) { flash('bad', '✗ ບໍ່ພົບບາໂຄດໃນຮູບ'); beep(220, .3); }
 };
-$('#tabSel').onchange = e => { S.tab = e.target.value; store.set('tab', S.tab); S.cur = null; S.filter = 'topack'; loadOrders(); };
+$('#labelIn').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) uploadLabel(f); };
+$('#tabSel').onchange = e => { S.queue = null; S.tab = e.target.value; store.set('tab', S.tab); S.cur = null; S.filter = 'topack'; loadOrders(); };
 $('#staffBtn').onclick = () => pickStaff();
 boot();
 </script>
