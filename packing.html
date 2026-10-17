@@ -455,7 +455,7 @@ function waSend(o) {
   } catch (e) {}
   const text = encodeURIComponent(labelMessage(o));
   S.waPending = o.no;
-  toast(copied ? '📋 ຮູບຖືກ copy ແລ້ວ — ໃນ WhatsApp: ສົ່ງຂໍ້ຄວາມ, ແລ້ວກົດຄ້າງຊ່ອງພິມ → Paste → ສົ່ງຮູບ' : 'ສົ່ງຂໍ້ຄວາມ ແລ້ວແນບຮູບໃບສົ່ງ', 8000);
+  toast('ສົ່ງຂໍ້ຄວາມ ແລ້ວກັບມາແອັບ ເພື່ອສົ່ງຮູບ', 6000);
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   setTimeout(() => { location.href = mobile ? 'whatsapp://send?phone=' + num + '&text=' + text : 'https://wa.me/' + num + '?text=' + text; }, 250);
   return true;
@@ -466,9 +466,30 @@ document.addEventListener('visibilitychange', async () => {
   const no = S.waPending; S.waPending = null;
   const o = S.orders.find(x => x.no === no) || (S.cur && S.cur.no === no ? S.cur : null); if (!o) return;
   await new Promise(r => setTimeout(r, 400));
+  await photoStep(o);
   const r = await askSent(o);
   if (S.queue && S.queue.nos[S.queue.i] === no) qNext(r);
 });
+/* Step 2: send the real photo. WhatsApp's share list shows the chat just used at the top. */
+function photoStep(o) {
+  const f = S.labelFile[o.no]; if (!f) return Promise.resolve();
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [f.file] }));
+  return dialog(`<h3>ຂັ້ນ 2: ສົ່ງຮູບໃບສົ່ງ</h3>
+      <div class="mute">ກົດ 📷 → ເລືອກ <b>WhatsApp</b> → ເລືອກແຊັດ <b>${esc(o.name)}</b> (ຢູ່ເທິງສຸດ) → ສົ່ງ</div>
+      <img class="lblimg" src="${f.url}" alt="">
+      <div class="choice"><button class="btn ok" data-v="share">📷 ສົ່ງຮູບທາງ WhatsApp</button><button class="btn" data-v="skip">ຂ້າມ</button></div>`,
+    done => {
+      document.querySelector('#modalBody [data-v=skip]').onclick = () => done('skip');
+      document.querySelector('#modalBody [data-v=share]').onclick = async () => {
+        if (!canShare) {
+          const a = document.createElement('a'); a.href = f.url; a.download = 'ໃບສົ່ງ-' + o.no + '.jpg'; document.body.appendChild(a); a.click(); a.remove();
+          toast('ບັນທຶກຮູບແລ້ວ — ແນບໃນ WhatsApp', 4000); done('saved'); return;
+        }
+        try { await navigator.share({ files: [f.file] }); done('shared'); }
+        catch (e) { if (!e || e.name !== 'AbortError') done('err'); }
+      };
+    });
+}
 
 /* Returns 'ok', 'fail' or '' (later). */
 async function askSent(o) {
