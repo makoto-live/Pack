@@ -357,7 +357,7 @@ function labelSection(o) {
   if (!f && !f0[o.no]) { f0[o.no] = 1; fetchLabel(o); }
   const sent = o.labelSent;
   return `<div class="section"><h4>ໃບສົ່ງເຄື່ອງ</h4>
-      ${f ? `<img class="lblimg" src="${f.url}" alt="">` : `<a href="https://drive.google.com/file/d/${esc(o.label)}/view" target="_blank">📷 ເບິ່ງຮູບໃບສົ່ງ</a>`}
+      ${f ? `<img class="lblimg" src="${f.url}" alt="">` : `<a href="https://drive.google.com/file/d/${esc(o.label)}/view${o.labelPage ? '#page=' + esc(o.labelPage) : ''}" target="_blank">📷 ເບິ່ງໃບສົ່ງ</a> <span class="mute">(ກຳລັງໂຫຼດ…)</span>`}
       ${/^⚠/.test(o.labelBy) ? `<div class="warnbox">${esc(o.labelBy)}</div>` : `<div class="mute">${esc(o.labelBy)}</div>`}
       ${sent ? `<div class="lblstate">${esc(sent)}</div><div class="mute">${esc(o.labelSentBy)}</div>` : '<div class="lblstate">📮 ຍັງບໍ່ໄດ້ສົ່ງໃຫ້ລູກຄ້າ</div>'}
       <div class="mute">WhatsApp: ${waNumber(o) ? esc('+' + waNumber(o)) : '<b style="color:#991b1b">ບໍ່ມີເບີໂທ</b>'}</div>
@@ -367,12 +367,48 @@ function labelSection(o) {
     </div>`;
 }
 const f0 = {};
+/* PDF labels (many labels in one courier PDF): render the customer's page as a picture. */
+let pdfReady = null; const pdfDocs = {};
+function pdfjs() {
+  if (!pdfReady) pdfReady = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'; res(window.pdfjsLib); };
+    s.onerror = () => { pdfReady = null; rej(new Error('PDF')); };
+    document.head.appendChild(s);
+  });
+  return pdfReady;
+}
+async function pdfPageImage(u8, id, page, tracking) {
+  const lib = await pdfjs();
+  const doc = await (pdfDocs[id] = pdfDocs[id] || lib.getDocument({ data: u8 }).promise);
+  let n = Math.min(Math.max(1, +page || 1), doc.numPages);
+  const key = String(tracking || '').replace(/\s/g, '');
+  if (key && doc.numPages > 1) {                 // find the page that carries this tracking number
+    for (let i = 1; i <= doc.numPages; i++) {
+      const tc = await (await doc.getPage(i)).getTextContent();
+      if (tc.items.map(x => x.str).join(' ').replace(/\s/g, '').includes(key)) { n = i; break; }
+    }
+  }
+  const pg = await doc.getPage(n), vp = pg.getViewport({ scale: 2 });
+  const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  await pg.render({ canvasContext: g, viewport: vp }).promise;
+  return await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+}
+const pdfBytes = {};
 async function fetchLabel(o) {
   try {
-    const r = await api('apiLabelImg', { id: o.label });
-    const bin = atob(r.data), u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    setLabelFile(o.no, new File([u8], 'label-' + o.no + '.jpg', { type: 'image/jpeg' }));
+    let u8 = pdfBytes[o.label], type = u8 ? 'application/pdf' : '';
+    if (!u8) {
+      const r = await api('apiLabelImg', { id: o.label });
+      const bin = atob(r.data); u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      type = r.type || '';
+      if (type === 'application/pdf') pdfBytes[o.label] = u8;
+    }
+    const blob = type === 'application/pdf' ? await pdfPageImage(u8, o.label, o.labelPage, o.tracking) : new Blob([u8], { type: 'image/jpeg' });
+    setLabelFile(o.no, new File([blob], 'label-' + o.no + '.jpg', { type: 'image/jpeg' }));
     if (S.cur && S.cur.no === o.no) renderOrder(); else if (S.queue && qOrder() && qOrder().no === o.no) renderQueue();
   } catch (e) { delete f0[o.no]; }
 }
@@ -534,8 +570,8 @@ function sendAllBar() {
       ${bad ? `<div class="warnbox">❌ ສົ່ງບໍ່ໄດ້ ${bad} ອໍເດີ — ເປີດອໍເດີເພື່ອລອງໃໝ່</div>` : ''}</div>
     ${(S.problems || []).length ? `<div class="section"><h4>ຮູບທີ່ມີບັນຫາ (${S.problems.length})</h4>${S.problems.map(p => `
       <div class="item" style="flex-wrap:wrap"><div class="nm"><b>${p.kind === 'dup' ? '⚠ ຊ້ຳ' : '❓ ອ່ານບໍ່ໄດ້'}</b><span class="mute">${esc(p.why)} · ${esc(p.at)}</span>
-        <a href="https://drive.google.com/file/d/${esc(p.id)}/view" target="_blank">📷 ເບິ່ງຮູບ</a></div>
-        <button class="btn sm" data-assign="${esc(p.id)}">ໃສ່ເລກອໍເດີ</button><button class="btn sm" data-dismiss="${esc(p.id)}">ລຶບອອກ</button></div>`).join('')}</div>` : ''}`;
+        <a href="https://drive.google.com/file/d/${esc(p.id)}/view${p.page ? '#page=' + esc(p.page) : ''}" target="_blank">${p.pdf ? '📄 ເບິ່ງ PDF' + (p.page ? ' ໜ້າ ' + esc(p.page) : '') : '📷 ເບິ່ງຮູບ'}</a></div>
+        <button class="btn sm" data-assign="${esc(p.key || p.id)}">ໃສ່ເລກອໍເດີ</button><button class="btn sm" data-dismiss="${esc(p.key || p.id)}">ລຶບອອກ</button></div>`).join('')}</div>` : ''}`;
 }
 function startQueue() {
   const list = toSend();
@@ -794,7 +830,7 @@ document.addEventListener('click', async e => {
   const d = t.dataset;
   if (d.f) { S.filter = d.f; renderList(); return; }
   if (d.assign) { assignLabel(d.assign); return; }
-  if (d.dismiss) { if (await confirmBox('ລຶບຮູບນີ້ອອກຈາກລາຍການ? (ຮູບຍັງຢູ່ໃນ Drive)')) { S.problems = S.problems.filter(p => p.id !== d.dismiss); renderList(); api('apiLabelDismiss', { id: d.dismiss }).catch(e => toast('⚠ ' + errMsg(e))); } return; }
+  if (d.dismiss) { if (await confirmBox('ລຶບຮູບນີ້ອອກຈາກລາຍການ? (ຮູບຍັງຢູ່ໃນ Drive)')) { S.problems = S.problems.filter(p => (p.key || p.id) !== d.dismiss); renderList(); api('apiLabelDismiss', { id: d.dismiss }).catch(e => toast('⚠ ' + errMsg(e))); } return; }
   if (d.open) { openOrder(d.open); return; }
   if (d.tick !== undefined) { const i = +d.tick, it = S.cur.items[i]; S.counts[i] = S.counts[i] >= it.qty ? 0 : it.qty; saveScan(); renderOrder(); return; }
   if (d.minus !== undefined) { const i = +d.minus; if (S.counts[i] > 0) S.counts[i]--; saveScan(); renderOrder(); return; }
