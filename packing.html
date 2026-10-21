@@ -254,7 +254,25 @@ async function poll() {
   try { await loadOrders(true); } finally { S.syncing = false; }
 }
 setInterval(poll, 5000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { poll(); refreshTabs(); } });
+/* New live tabs: the home-screen app can stay open for days, so re-check the tab list. */
+let tabsAt = Date.now();
+async function refreshTabs() {
+  if (Date.now() - tabsAt < 60000 || S.pending || !S.tab) return;
+  tabsAt = Date.now();
+  try {
+    const b = await api('apiBootstrap');
+    if (!b.tabs || !b.tabs.length || b.tabs.join('|') === S.tabs.join('|')) return;
+    S.tabs = b.tabs; S.staffList = b.staff || S.staffList; S.names = b.names || S.names;
+    const newest = S.tabs[0];
+    if (store.get('newest') !== newest && !S.cur && !S.queue) {   // a new live day → switch to it
+      S.tab = newest; store.set('tab', newest); S.filter = 'topack'; toast('📅 ແຖບໃໝ່: ' + newest, 4000); loadOrders();
+    }
+    store.set('newest', newest);
+    $('#tabSel').innerHTML = S.tabs.map(t => `<option ${t === S.tab ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  } catch (e) {}
+}
+setInterval(refreshTabs, 120000);
 
 /* ---------- list ---------- */
 /* ລໍຖ້າຈັດ = paid or pickup-at-store, not packed yet · ລໍຖ້າສົ່ງ = packed, not shipped yet */
