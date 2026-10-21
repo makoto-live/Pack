@@ -54,9 +54,10 @@ main{padding:12px;max-width:720px;margin:0 auto 40px}
 .hidden{display:none!important}
 .sheet{background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px;max-height:90vh;overflow:auto}
 .sheet h3{margin:0 0 8px}
-#scanner{background:#000;flex-direction:column;align-items:stretch;justify-content:flex-start;overflow:auto}
+#scanner{background:#000;flex-direction:column;align-items:stretch;justify-content:flex-start;overflow:hidden}
+#scanner>.scanTop,#scanner>.msg,#scanner>.camerr{flex:0 0 auto}
 .scanTop{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;color:#fff;gap:8px}
-.camwrap{position:relative;width:100%;max-width:560px;margin:0 auto;aspect-ratio:4/3;background:#000;overflow:hidden}
+.camwrap{position:relative;width:100%;max-width:560px;margin:0 auto;aspect-ratio:4/3;max-height:42vh;flex:0 0 auto;background:#000;overflow:hidden}
 .camwrap video{width:100%;height:100%;object-fit:cover;display:block}
 .guide{position:absolute;left:5%;right:5%;top:20%;bottom:20%;border:3px solid rgba(255,255,255,.9);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35);transition:border-color .15s}
 .guide::after{content:'';position:absolute;left:4%;right:4%;top:50%;height:2px;background:#ef4444;opacity:.8}
@@ -64,7 +65,7 @@ main{padding:12px;max-width:720px;margin:0 auto 40px}
 .camerr{margin:8px 12px;padding:10px;border-radius:10px;background:var(--warnbg);color:#92400e;font-size:14px}
 .msg{margin:8px 12px;padding:12px;border-radius:10px;font-weight:700;text-align:center;background:#1f2937;color:#fff;font-size:17px;overflow-wrap:anywhere}
 .msg.ok{background:var(--ok)}.msg.bad{background:var(--bad)}.msg.warn{background:var(--warn)}
-.scanPanel{background:#fff;border-radius:16px 16px 0 0;padding:12px;margin-top:auto}
+.scanPanel{background:#fff;border-radius:16px 16px 0 0;padding:12px;margin-top:auto;flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .manual{display:flex;gap:6px;margin:8px 0}
 .manual input,input.txt{flex:1;min-width:0;width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:16px}
 input.txt{margin:8px 0 12px}
