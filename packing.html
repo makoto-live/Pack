@@ -533,12 +533,39 @@ function waSend(o) {
       copied = true;
     }
   } catch (e) {}
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (!mobile) { pcSend(o, f, num); return true; }
   const text = encodeURIComponent(labelMessage(o));
   S.waPending = o.no;
   toast('ສົ່ງຂໍ້ຄວາມ ແລ້ວກັບມາແອັບ ເພື່ອສົ່ງຮູບ', 6000);
-  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  setTimeout(() => { location.href = mobile ? 'whatsapp://send?phone=' + num + '&text=' + text : 'https://wa.me/' + num + '?text=' + text; }, 250);
+  setTimeout(() => { location.href = 'whatsapp://send?phone=' + num + '&text=' + text; }, 250);
   return true;
+}
+/* PC (WhatsApp Desktop / Web): the photo is already copied — staff paste it with Ctrl+V. Emojis break on PC links, so plain text. */
+const copyLabel = f => { try { navigator.clipboard.write([new ClipboardItem({ 'image/png': f.png })]); return true; } catch (e) { return false; } };
+async function pcSend(o, f, num) {
+  const text = encodeURIComponent(labelMessage(o).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/ *\n */g, '\n').trim());
+  const a = document.createElement('a'); a.href = 'whatsapp://send?phone=' + num + '&text=' + text; document.body.appendChild(a); a.click(); a.remove();
+  const mac = /Mac/i.test(navigator.platform || navigator.userAgent), key = mac ? '⌘ + V' : 'Ctrl + V';
+  const v = await dialog(`<h3>ສົ່ງໃບສົ່ງໃຫ້ ${esc(o.name)} (#${esc(o.no)})</h3>
+      <ol style="margin:6px 0 10px 18px;padding:0;line-height:1.7">
+        <li>ໃນ WhatsApp: ກົດ <b>Enter</b> ສົ່ງຂໍ້ຄວາມ</li>
+        <li>ກົດ <b>${key}</b> ວາງຮູບ ແລ້ວກົດ <b>Enter</b></li>
+      </ol>
+      <img class="lblimg" src="${f.url}" alt="" style="max-height:40vh;object-fit:contain">
+      <div class="choice"><button class="btn" data-v="copy">📋 ກັອບປີ້ຮູບອີກຄັ້ງ</button><button class="btn" data-v="open">💬 ເປີດແຊັດອີກຄັ້ງ</button></div>
+      <div class="choice"><button class="btn ok" data-v="ok">✅ ສົ່ງແລ້ວ</button><button class="btn" data-v="fail">❌ ສົ່ງບໍ່ໄດ້</button><button class="btn" data-v="">ພາຍຫຼັງ</button></div>
+      <div class="mute" style="margin-top:6px">ບໍ່ມີ WhatsApp ໃນຄອມ? <a href="https://web.whatsapp.com/send?phone=${num}&text=${text}" target="makoto_wa">ເປີດ WhatsApp Web</a></div>`,
+    done => document.querySelectorAll('#modalBody [data-v]').forEach(b => b.onclick = () => {
+      if (b.dataset.v === 'copy') { toast(copyLabel(f) ? '📋 ກັອບປີ້ຮູບແລ້ວ — ກົດ ' + key + ' ໃນແຊັດ' : 'ກັອບປີ້ບໍ່ໄດ້', 3000); return; }
+      if (b.dataset.v === 'open') { copyLabel(f); const x = document.createElement('a'); x.href = 'whatsapp://send?phone=' + num; document.body.appendChild(x); x.click(); x.remove(); return; }
+      done(b.dataset.v);
+    }));
+  let r = '';
+  if (v === 'ok') { await labelSent(o, true); r = 'ok'; }
+  else if (v === 'fail') { const why = await failReason(); if (why) { await labelSent(o, false, why); r = 'fail'; } }
+  if (S.queue && S.queue.nos[S.queue.i] === o.no) qNext(r);
+  else if (S.cur) renderOrder(); else renderList();
 }
 /* Back from WhatsApp → ask whether it was sent. */
 document.addEventListener('visibilitychange', async () => {
