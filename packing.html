@@ -280,7 +280,7 @@ async function refreshTabs() {
 }
 setInterval(refreshTabs, 120000);
 /* Auto-update: when a new version of the app is published, reload at a safe moment (on the order list, nothing open). */
-const BUILD = '2026-10-23b';
+const BUILD = '2026-10-23c';
 async function checkUpdate() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text();
@@ -399,9 +399,10 @@ function renderOrder() {
         ${got ? '<button class="link" data-act="reset">ລ້າງການສະແກນ</button>' : ''}
       </div>
     </div>`}
+    ${o.packed ? packPhotoView(o) : ''}
     ${o.packed ? labelSection(o) : ''}
     <div class="section"><h4>ສະຖານະ</h4>
-      <div class="st ${o.packed ? 'y' : ''}"><div><b>${o.packed ? '✓ ຈັດແລ້ວ' : 'ຍັງບໍ່ໄດ້ຈັດ'}</b>${who(o.packedBy, o.packedAt)}${o.packPhoto ? `<a href="https://drive.google.com/file/d/${esc(o.packPhoto)}/view" target="_blank">📷 ຮູບຈັດເຄື່ອງ</a>` : ''}</div>
+      <div class="st ${o.packed ? 'y' : ''}"><div><b>${o.packed ? '✓ ຈັດແລ້ວ' : 'ຍັງບໍ່ໄດ້ຈັດ'}</b>${who(o.packedBy, o.packedAt)}</div>
         ${o.packed ? `<button class="btn sm" data-undo="packed" ${B}>ຍົກເລີກ</button>` : ''}</div>
       <div class="st ${o.shipped ? 'y' : ''}"><div><b>${o.shipped ? '✓ ສົ່ງແລ້ວ / ຮັບແລ້ວ' : 'ຍັງບໍ່ໄດ້ສົ່ງ'}</b>${who(o.shippedBy, o.shippedAt)}</div>
         ${o.shipped ? `<button class="btn sm" data-undo="shipped" ${B}>ຍົກເລີກ</button>` : o.packed ? `<button class="btn sm pri" data-act="ship" ${B}>ສົ່ງແລ້ວ / ຮັບແລ້ວ</button>` : '<span class="mute">ຈັດກ່ອນ</span>'}</div>
@@ -747,6 +748,24 @@ async function update(action, value, extra) {
   }
 }
 const ACT_LA = { packed: 'ຈັດແລ້ວ', shipped: 'ສົ່ງແລ້ວ', paid: 'ຈ່າຍແລ້ວ' };
+/* Packing photo of a packed order, shown on the order page (loaded once, then kept in memory). */
+const PP = {}, ppAsked = {};
+function packPhotoView(o) {
+  const id = o.packPhoto;
+  if (!id) return '<div class="section"><h4>ຮູບຈັດເຄື່ອງ</h4><div class="mute">ບໍ່ມີຮູບ (ຈັດກ່ອນມີລະບົບຖ່າຍຮູບ)</div></div>';
+  if (!PP[id] && !ppAsked[id]) {
+    ppAsked[id] = 1;
+    api('apiLabelImg', { id }).then(r => {
+      const bin = atob(r.data), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      PP[id] = URL.createObjectURL(new Blob([u8], { type: r.type || 'image/jpeg' }));
+      if (S.cur && S.cur.packPhoto === id) renderOrder();
+    }).catch(() => { delete ppAsked[id]; });
+  }
+  return `<div class="section"><h4>ຮູບຈັດເຄື່ອງ <span class="mute" style="font-weight:400">· ${esc(o.packedBy)} ${esc(o.packedAt)}</span></h4>
+    ${PP[id] ? `<img class="lblimg" src="${PP[id]}" data-zoom="1" alt="" style="max-height:50vh;object-fit:contain">` : '<div class="mute">ກຳລັງໂຫຼດຮູບ…</div>'}
+    <a href="https://drive.google.com/file/d/${esc(id)}/view" target="_blank" class="mute">ເປີດໃນ Drive</a></div>`;
+}
 /* Photo of all products is required before an order can be marked packed. */
 S.packPh = {}; S.ovr = '';
 function packPhotoBlock(o) {
@@ -780,8 +799,8 @@ async function doPack(override) {
   catch (e) { toast('⚠ ບັນທຶກຮູບບໍ່ໄດ້: ' + errMsg(e), 5000); return; }
   finally { S.pending--; }
   o.packPhoto = r && r.id || o.packPhoto;
+  if (r && r.id) { PP[r.id] = p.url; ppAsked[r.id] = 1; }
   await update('packed', true, { verified: S.ovr !== o.no });
-  try { URL.revokeObjectURL(p.url); } catch (e) {}
   delete S.packPh[o.no]; if (S.ovr === o.no) S.ovr = '';
   if (S.cur && S.cur.no === o.no) renderOrder();
 }
