@@ -281,7 +281,7 @@ setInterval(refreshTabs, 120000);
 
 /* ---------- list ---------- */
 /* ລໍຖ້າຈັດ = paid or pickup-at-store, not packed yet · ລໍຖ້າສົ່ງ = packed, not shipped yet */
-const FILTERS = [['all', 'ທັງໝົດ', () => true], ['topack', 'ລໍຖ້າຈັດ', o => !o.packed && (o.paid || o.pickup)], ['toship', 'ລໍຖ້າສົ່ງ', o => o.packed && !o.shipped && !o.label], ['labels', '📮 ໃບສົ່ງ', o => !!o.label && !/^✅/.test(o.labelSent)], ['unpaid', 'ຍັງບໍ່ຈ່າຍ', o => !o.paid]];
+const FILTERS = [['all', 'ທັງໝົດ', () => true], ['topack', 'ລໍຖ້າຈັດ', o => !o.packed && (o.paid || o.pickup)], ['toship', 'ລໍຖ້າສົ່ງ', o => o.packed && !o.shipped && !o.label], ['labels', '📮 ໃບສົ່ງ', o => !!o.label && !/^✅/.test(o.labelSent)], ['unpaid', 'ຍັງບໍ່ຈ່າຍ', o => !o.paid], ['done', 'ສຳເລັດແລ້ວ', o => o.packed && o.shipped && o.paid]];
 const labelPill = o => !o.label ? '' : /^✅/.test(o.labelSent) ? '<span class="pill y">✅ ສົ່ງໃບແລ້ວ</span>' : /^❌/.test(o.labelSent) ? '<span class="pill bad">❌ ສົ່ງໃບບໍ່ໄດ້</span>' : '<span class="pill">📮 ຍັງບໍ່ສົ່ງໃບ</span>';
 function renderList() {
   S.cur = null;
