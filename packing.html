@@ -279,6 +279,22 @@ async function refreshTabs() {
   } catch (e) {}
 }
 setInterval(refreshTabs, 120000);
+/* Auto-update: when a new version of the app is published, reload at a safe moment (on the order list, nothing open). */
+const BUILD = '2026-10-23b';
+async function checkUpdate() {
+  try {
+    const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text();
+    const m = t.match(/const BUILD = '([^']+)'/);
+    if (m && m[1] !== BUILD) S.newBuild = true;
+  } catch (e) {}
+  if (S.newBuild && !S.cur && !S.queue && !S.pending && $('#modal').classList.contains('hidden') && $('#scanner').classList.contains('hidden')) {
+    let last = 0; try { last = +sessionStorage.getItem('ps_reload') || 0; } catch (e) {}
+    if (Date.now() - last > 300000) { try { sessionStorage.setItem('ps_reload', Date.now()); } catch (e) {} location.replace(location.pathname + '?v=' + Date.now()); }
+  }
+}
+setInterval(checkUpdate, 120000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+setTimeout(checkUpdate, 15000);
 
 /* ---------- list ---------- */
 /* ລໍຖ້າຈັດ = paid or pickup-at-store, not packed yet · ລໍຖ້າສົ່ງ = packed, not shipped yet */
@@ -286,6 +302,7 @@ const FILTERS = [['all', 'ທັງໝົດ', () => true], ['topack', 'ລໍ�
 const labelPill = o => !o.label ? '' : /^✅/.test(o.labelSent) ? '<span class="pill y">✅ ສົ່ງໃບແລ້ວ</span>' : /^❌/.test(o.labelSent) ? '<span class="pill bad">❌ ສົ່ງໃບບໍ່ໄດ້</span>' : '<span class="pill">📮 ຍັງບໍ່ສົ່ງໃບ</span>';
 function renderList() {
   S.cur = null;
+  if (S.newBuild) setTimeout(checkUpdate, 300);
   $('#app').innerHTML = `
     <div class="filters">${FILTERS.map(f => `<button data-f="${f[0]}" class="${S.filter === f[0] ? 'on' : ''}">${f[1]} (${S.orders.filter(f[2]).length})</button>`).join('')}</div>
     <div class="search"><input id="q" placeholder="ຄົ້ນຫາ ເລກອໍເດີ, ຊື່, ເບີໂທ" value="${esc(S.q)}" inputmode="search"><button class="btn sm" data-act="refresh" title="ໂຫຼດໃໝ່">↻</button></div>
