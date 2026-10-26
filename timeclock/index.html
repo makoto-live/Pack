@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Makoto Time Clock</title>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<style>
+:root{--bg:#0e1014;--card:#181b22;--card2:#20242d;--line:#2b303b;--text:#f3f5f9;--mute:#98a1b1;
+  --in:#16a34a;--out:#2563eb;--warn:#f59e0b;--bad:#dc2626;--accent:#e11d48}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI","Noto Sans Lao","Phetsarath OT",sans-serif;-webkit-tap-highlight-color:transparent}
+.hidden{display:none!important}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:12px 18px;background:var(--card2);color:var(--text)}
+button.primary{background:var(--accent);font-weight:600}
+button:disabled{opacity:.5}
+input,select{font:inherit;width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#0b0d11;color:var(--text)}
+label{display:block;font-size:14px;color:var(--mute);margin:14px 0 6px}
+.screen{min-height:100vh;display:flex;flex-direction:column}
+
+/* Setup */
+#setup{align-items:center;justify-content:center;padding:16px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;width:100%;max-width:440px}
+.panel h1{margin:0 0 4px;font-size:22px}
+.panel p{color:var(--mute);margin:0 0 8px;font-size:14px}
+.err{color:#fca5a5;font-size:14px;min-height:20px;margin-top:10px}
+
+/* Kiosk */
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;gap:12px}
+.brand{font-weight:800;letter-spacing:.18em;font-size:20px}
+.clock{text-align:center}
+#clockTime{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+#clockDate{color:var(--mute);font-size:14px;margin-top:4px}
+.hdr-btns{display:flex;gap:8px}
+.icon{width:48px;height:48px;padding:0;font-size:22px;border-radius:50%}
+.cam-wrap{position:relative;width:min(78vw,62vh,520px);aspect-ratio:1;margin:12px auto 0;border-radius:50%;overflow:hidden;background:#000}
+.cam-wrap video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.ring{position:absolute;inset:0;border-radius:50%;border:6px solid var(--line);transition:border-color .2s}
+.ring.ok{border-color:var(--in)} .ring.warn{border-color:var(--warn)} .ring.bad{border-color:var(--bad)}
+.status{text-align:center;font-size:24px;font-weight:600;margin:22px 16px 6px;min-height:32px}
+.status.ok{color:#86efac}.status.warn{color:#fcd34d}.status.bad{color:#fca5a5}
+.sub{text-align:center;color:var(--mute);font-size:15px;padding:0 16px 20px}
+.loc{text-align:center;font-size:15px;margin:0 16px 8px;color:var(--mute)}
+.loc.ok{color:#86efac}.loc.bad{color:#fca5a5}.loc.warn{color:#fcd34d}
+
+/* Result overlay */
+.result{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:20;padding:16px}
+.result.in{background:var(--in)} .result.out{background:var(--out)} .result.dup{background:#475569}
+.result .big{font-size:clamp(28px,6vw,52px);font-weight:800}
+.result .lao{font-size:clamp(20px,4vw,30px);opacity:.9;margin-top:4px}
+.result .name{font-size:clamp(32px,8vw,72px);font-weight:800;margin:24px 0 8px}
+.result .time{font-size:clamp(40px,10vw,90px);font-weight:300;font-variant-numeric:tabular-nums}
+.result .note{margin-top:18px;font-size:22px;background:rgba(0,0,0,.25);padding:10px 18px;border-radius:12px}
+
+/* Admin */
+#admin{padding:16px;max-width:1000px;margin:0 auto;width:100%}
+.adm-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.adm-top h2{margin:0;font-size:20px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tabs button.on{background:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.reg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media(max-width:700px){.reg{grid-template-columns:minmax(0,1fr)}}
+.reg video{width:100%;border-radius:14px;transform:scaleX(-1);background:#000;aspect-ratio:4/3;object-fit:cover}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.msg{margin-top:10px;font-size:15px;color:var(--mute);min-height:22px}
+.list{margin-top:12px;font-size:14px}
+.list div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);gap:8px}
+.tag{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--card2);color:var(--mute);white-space:nowrap}
+.tag.yes{background:#14532d;color:#bbf7d0}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--mute);font-weight:500}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer} tr.click:hover{background:var(--card2)}
+.pill-in{color:#86efac;font-weight:600}.pill-out{color:#93c5fd;font-weight:600}
+a{color:#93c5fd}
+
+/* Modals */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:30;padding:16px}
+.modal .panel{max-height:92vh;overflow:auto}
+#slip{background:#fff;color:#111;border-radius:16px;padding:28px;width:100%;max-width:520px;max-height:92vh;overflow:auto}
+#slip h3{margin:0;font-size:20px}
+#slip .muted{color:#666;font-size:13px}
+#slip table{font-size:14px;margin-top:14px}
+#slip td{border-bottom:1px solid #eee;color:#111;padding:7px 4px}
+#slip .sec td{font-weight:700;background:#f4f4f5}
+#slip .tot td{font-weight:800;font-size:17px;border-top:2px solid #111}
+#slip .sign{display:flex;justify-content:space-between;margin-top:42px;font-size:13px;color:#444}
+#slip .sign div{border-top:1px solid #999;padding-top:6px;width:42%;text-align:center}
+@media print{
+  body *{visibility:hidden}
+  #slip,#slip *{visibility:visible}
+  #slip{position:absolute;left:0;top:0;max-height:none;box-shadow:none}
+  .noprint{display:none!important}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ DEVICE SETUP ============ -->
+<section id="setup" class="screen hidden">
+  <div class="panel">
+    <h1>Time Clock setup</h1>
+    <p>Do this once on the store tablet.</p>
+    <label>Web app URL (from Apps Script → Deploy)</label>
+    <input id="setUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    <label>Kiosk key (Settings tab in the Sheet)</label>
+    <input id="setKey" placeholder="e.g. 7F3A9C21B0" autocomplete="off">
+    <div class="row"><button class="primary" id="setSave" style="width:100%">Connect</button></div>
+    <div class="err" id="setErr"></div>
+  </div>
+</section>
+
+<!-- ============ KIOSK ============ -->
+<section id="kiosk" class="screen hidden">
+  <header>
+    <div class="brand" id="brand">MAKOTO</div>
+    <div class="clock"><div id="clockTime">--:--</div><div id="clockDate"></div></div>
+    <div class="hdr-btns">
+      <button class="icon" id="btnFull" title="Full screen">⛶</button>
+      <button class="icon" id="btnAdmin" title="Admin">⚙</button>
+    </div>
+  </header>
+  <div class="cam-wrap"><video id="video" autoplay muted playsinline></video><div class="ring" id="ring"></div></div>
+  <div class="status" id="status">Loading…</div>
+  <div class="loc" id="locStatus">📍 Checking location…</div>
+  <div class="sub">Look at the camera to clock in or out · ເບິ່ງກ້ອງເພື່ອລົງເວລາເຂົ້າ-ອອກວຽກ</div>
+</section>
+
+<div id="result" class="result hidden">
+  <div class="big" id="rBig"></div>
+  <div class="lao" id="rLao"></div>
+  <div class="name" id="rName"></div>
+  <div class="time" id="rTime"></div>
+  <div class="note hidden" id="rNote"></div>
+</div>
+
+<!-- ============ ADMIN ============ -->
+<section id="admin" class="screen hidden">
+  <div class="adm-top">
+    <h2>Admin</h2>
+    <div class="row" style="margin:0">
+      <button id="btnReset">Device setup</button>
+      <button class="primary" id="btnExit">Back to time clock</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button data-tab="reg" class="on">Register faces</button>
+    <button data-tab="today">Today</button>
+    <button data-tab="pay">Payroll</button>
+    <button data-tab="loc">Store location</button>
+  </div>
+
+  <div id="tab-reg" class="card">
+    <div class="reg">
+      <div>
+        <video id="video2" autoplay muted playsinline></video>
+      </div>
+      <div>
+        <label style="margin-top:0">Employee</label>
+        <select id="empSel"></select>
+        <div class="row">
+          <button class="primary" id="capBtn">Capture face (5 samples)</button>
+          <button id="clearBtn">Remove face</button>
+        </div>
+        <div class="msg" id="capMsg">Ask the employee to look at the camera, then slowly turn their head a little left and right.</div>
+        <div class="list" id="empList"></div>
+      </div>
+    </div>
+    <p class="msg">Add or edit employees, salaries and shift times in the <b>Employees</b> tab of the Google Sheet, then come back here.</p>
+  </div>
+
+  <div id="tab-today" class="card hidden">
+    <div class="row" style="margin-top:0"><button id="todayBtn">Refresh</button></div>
+    <div class="tbl-wrap" style="margin-top:12px"><table id="todayTbl"></table></div>
+  </div>
+
+  <div id="tab-loc" class="card hidden">
+    <p class="msg" style="margin-top:0">Stand inside the store and save its position. Staff can only clock in within the radius. To test at home, save a location named after your home, then change it at the store.</p>
+    <label>Store name</label>
+    <input id="locName" value="Makoto Store">
+    <label>Allowed radius (metres)</label>
+    <input id="locRadius" type="number" value="100" min="20">
+    <div class="row"><button class="primary" id="locSave">Save my current position as this store</button></div>
+    <div class="msg" id="locMsg"></div>
+    <div class="list" id="locList"></div>
+  </div>
+
+  <div id="tab-pay" class="card hidden">
+    <div class="row" style="margin-top:0;align-items:center">
+      <input type="month" id="payMonth" style="max-width:200px">
+      <button class="primary" id="payBtn">Calculate salary</button>
+    </div>
+    <div class="msg" id="payMsg">Tap a row to open and print the payslip. Results are also saved to the Payroll tab.</div>
+    <div class="tbl-wrap"><table id="payTbl"></table></div>
+  </div>
+</section>
+
+<div id="pinModal" class="modal hidden">
+  <div class="panel">
+    <h1>Admin PIN</h1>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off">
+    <div class="row"><button id="pinCancel">Cancel</button><button class="primary" id="pinOk">Open</button></div>
+    <div class="err" id="pinErr"></div>
+  </div>
+</div>
+
+<div id="slipModal" class="modal hidden">
+  <div id="slip"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+const STORE = 'makoto_timeclock';
+
+let cfg = loadCfg();
+let stream = null, matcher = null, emps = [], threshold = 0.5, company = 'Makoto', currency = 'LAK';
+let mode = 'kiosk', busy = false, adminPin = '', adminEmps = [], payRows = [], payMonth = '';
+let streak = { label: null, n: 0 };
+const cooldown = {};
+let detOpts = null;
+let locations = [], requireLoc = true, maxAcc = 100, fix = null, geoErr = '';
+
+function loadCfg(){ try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch(e){ return {}; } }
+function saveCfg(){ try { localStorage.setItem(STORE, JSON.stringify(cfg)); } catch(e){} }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => Number(n || 0).toLocaleString('en-US');
+
+function show(id){
+  ['setup','kiosk','admin'].forEach(s => $('#'+s).classList.toggle('hidden', s !== id));
+}
+
+async function api(action, data = {}){
+  const res = await fetch(cfg.url, { method: 'POST', body: JSON.stringify(Object.assign({ action, key: cfg.key }, data)) });
+  let j;
+  try { j = await res.json(); } catch(e){ throw new Error('Cannot reach the Sheet — check the URL and deployment access ("Anyone")'); }
+  if (!j.ok) throw new Error(j.error || 'Error');
+  return j;
+}
+
+function setStatus(text, cls = ''){
+  const el = $('#status');
+  if (el.textContent !== text) el.textContent = text;
+  el.className = 'status ' + cls;
+}
+function ring(cls){ $('#ring').className = 'ring ' + (cls || ''); }
+
+/* ---------- clock ---------- */
+function tick(){
+  const d = new Date();
+  $('#clockTime').textContent = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  $('#clockDate').textContent = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+setInterval(tick, 1000); tick();
+
+/* ---------- setup ---------- */
+$('#setSave').onclick = async () => {
+  const url = $('#setUrl').value.trim(), key = $('#setKey').value.trim();
+  $('#setErr').textContent = '';
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { $('#setErr').textContent = 'The URL should start with https://script.google.com and end with /exec'; return; }
+  cfg = { url, key };
+  $('#setSave').disabled = true;
+  try { await api('ping'); saveCfg(); boot(); }
+  catch(e){ $('#setErr').textContent = e.message; }
+  $('#setSave').disabled = false;
+};
+
+/* ---------- boot ---------- */
+async function boot(){
+  if (!cfg.url || !cfg.key){ $('#setUrl').value = cfg.url || ''; show('setup'); return; }
+  show('kiosk');
+  try {
+    setStatus('Loading face models…');
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+    ]);
+    detOpts = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
+    setStatus('Starting camera…');
+    if (!stream){
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    }
+    $('#video').srcObject = stream;
+    await $('#video').play().catch(() => {});
+    startGeo();
+    await loadEmployees();
+    setInterval(() => loadEmployees().catch(() => {}), 10 * 60 * 1000);
+    keepAwake();
+    loop();
+  } catch(e){
+    setStatus('⚠ ' + e.message, 'bad');
+  }
+}
+
+async function loadEmployees(){
+  const j = await api('employees');
+  emps = j.employees; threshold = Number(j.threshold) || 0.5; company = j.company; currency = j.currency;
+  locations = j.locations || []; requireLoc = j.requireLoc !== false; maxAcc = Number(j.maxAcc) || 100;
+  renderLoc();
+  $('#brand').textContent = String(company).toUpperCase();
+  const labeled = emps.filter(e => e.faces.length)
+    .map(e => new faceapi.LabeledFaceDescriptors(e.id, e.faces.map(f => new Float32Array(f))));
+  matcher = labeled.length ? new faceapi.FaceMatcher(labeled, threshold) : null;
+  if (mode === 'kiosk' && !busy){
+    if (matcher) setStatus('Ready — look at the camera');
+    else setStatus('No faces registered yet — tap ⚙ to register staff', 'warn');
+  }
+}
+
+/* ---------- location ---------- */
+function distM(a, b, c, d){
+  const R = 6371000, r = x => x * Math.PI / 180;
+  const h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function startGeo(){
+  if (!navigator.geolocation){ geoErr = 'This browser has no GPS'; renderLoc(); return; }
+  navigator.geolocation.watchPosition(p => {
+    fix = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() }; geoErr = ''; renderLoc();
+  }, e => {
+    geoErr = e.code === 1 ? 'Location blocked — allow location for this page in your browser settings' : 'Waiting for GPS…';
+    renderLoc();
+  }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+}
+function getFreshFix(){
+  if (fix && Date.now() - fix.t < 30000) return Promise.resolve(fix);
+  return new Promise(res => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => {
+      fix = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() }; res(fix);
+    }, () => res(fix), { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+  });
+}
+function nearest(){
+  if (!fix || !locations.length) return null;
+  let best = null;
+  locations.forEach(l => { const d = distM(fix.lat, fix.lng, l.lat, l.lng); if (!best || d - l.radius < best.d - best.l.radius) best = { l, d }; });
+  return best;
+}
+function renderLoc(){
+  const el = $('#locStatus'); if (!el) return;
+  let t, cls;
+  if (geoErr){ t = '📍 ' + geoErr; cls = 'bad'; }
+  else if (!fix){ t = '📍 Checking location…'; cls = 'warn'; }
+  else if (!locations.length){ t = requireLoc ? '📍 No store location set yet (Admin ⚙ › Store location)' : '📍 Location not checked'; cls = requireLoc ? 'warn' : ''; }
+  else {
+    const n = nearest();
+    if (fix.acc > maxAcc){ t = `📍 GPS weak (±${Math.round(fix.acc)} m) — move near a window`; cls = 'warn'; }
+    else if (n.d <= n.l.radius){ t = `📍 At ${n.l.name} ✓ · ຢູ່ຮ້ານ`; cls = 'ok'; }
+    else { t = `📍 Not at the store — ${Math.round(n.d)} m from ${n.l.name} · ບໍ່ຢູ່ຮ້ານ`; cls = requireLoc ? 'bad' : 'warn'; }
+  }
+  el.textContent = t; el.className = 'loc ' + cls;
+}
+
+async function detect(video){
+  return faceapi.detectSingleFace(video, detOpts).withFaceLandmarks().withFaceDescriptor();
+}
+
+/* ---------- kiosk loop ---------- */
+async function loop(){
+  const v = $('#video');
+  if (mode === 'kiosk' && !busy && matcher && v.readyState >= 2){
+    try {
+      const d = await detect(v);
+      if (!d){
+        streak = { label: null, n: 0 }; ring(''); setStatus('Ready — look at the camera');
+      } else if (d.detection.box.width < v.videoWidth * 0.22){
+        streak = { label: null, n: 0 }; ring('warn'); setStatus('Come a little closer · ເຂົ້າໃກ້ອີກໜ້ອຍ', 'warn');
+      } else {
+        const m = matcher.findBestMatch(d.descriptor);
+        if (m.label === streak.label) streak.n++; else streak = { label: m.label, n: 1 };
+        if (m.label === 'unknown'){
+          ring('bad');
+          if (streak.n >= 4) setStatus('Face not recognised · ບໍ່ຮູ້ຈັກໃບໜ້າ', 'bad');
+        } else {
+          ring('ok'); setStatus('Hold still… · ຢູ່ນິ່ງໆ', 'ok');
+          if (streak.n >= 3){
+            const id = m.label, score = 1 - m.distance;
+            streak = { label: null, n: 0 };
+            await doClock(id, score);
+          }
+        }
+      }
+    } catch(e){ console.error(e); }
+  }
+  setTimeout(loop, 250);
+}
+
+async function doClock(id, score){
+  const emp = emps.find(e => e.id === id);
+  if (!emp) return;
+  if (cooldown[id] && Date.now() - cooldown[id] < 60000){
+    setStatus(emp.name + ' — already recorded ✓', 'ok');
+    return;
+  }
+  busy = true;
+  setStatus(emp.name + ' — saving…', 'ok');
+  try {
+    const f = await getFreshFix();
+    const j = await api('clock', { id, score: Math.round(score * 100) / 100, photo: snap(),
+      lat: f ? f.lat : null, lng: f ? f.lng : null, acc: f ? Math.round(f.acc) : null });
+    cooldown[id] = Date.now();
+    beep(j.type === 'IN' ? 880 : 660);
+    await showResult(j);
+  } catch(e){
+    setStatus('⚠ ' + e.message, 'bad');
+    await sleep(3000);
+  }
+  ring('');
+  setStatus('Ready — look at the camera');
+  busy = false;
+}
+
+function snap(){
+  const v = $('#video');
+  if (!v.videoWidth) return '';
+  const w = 320, h = Math.round(v.videoHeight * w / v.videoWidth);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(v, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', 0.6);
+}
+
+async function showResult(j){
+  const r = $('#result');
+  const isIn = j.type === 'IN';
+  r.className = 'result ' + (j.duplicate ? 'dup' : (isIn ? 'in' : 'out'));
+  $('#rBig').textContent = j.duplicate ? 'Already recorded' : (isIn ? 'CLOCK IN ✓' : 'CLOCK OUT ✓');
+  $('#rLao').textContent = j.duplicate ? 'ບັນທຶກແລ້ວ' : (isIn ? 'ເຂົ້າວຽກ' : 'ອອກວຽກ');
+  $('#rName').textContent = j.name;
+  $('#rTime').textContent = j.time;
+  let note = '';
+  if (j.duplicate) note = (j.type === 'IN' ? 'Clocked in' : 'Clocked out') + ' at ' + j.time;
+  else if (isIn && j.lateMin) note = 'Late ' + j.lateMin + ' min · ມາຊ້າ ' + j.lateMin + ' ນາທີ';
+  else if (!isIn && j.earlyMin) note = 'Leaving ' + j.earlyMin + ' min early · ອອກກ່ອນ ' + j.earlyMin + ' ນາທີ';
+  else if (!isIn) note = 'Thank you, see you tomorrow · ຂອບໃຈ';
+  $('#rNote').textContent = note;
+  $('#rNote').classList.toggle('hidden', !note);
+  await sleep(3500);
+  r.classList.add('hidden');
+}
+
+function beep(freq){
+  try {
+    const a = new (window.AudioContext || window.webkitAudioContext)();
+    const o = a.createOscillator(), g = a.createGain();
+    o.frequency.value = freq; o.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(0.2, a.currentTime); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.35);
+    o.start(); o.stop(a.currentTime + 0.35);
+  } catch(e){}
+}
+
+let wakeLock = null;
+async function keepAwake(){
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+
+$('#btnFull').onclick = () => {
+  const el = document.documentElement;
+  if (!document.fullscreenElement) (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+  else document.exitFullscreen && document.exitFullscreen();
+};
+
+/* ---------- admin login ---------- */
+$('#btnAdmin').onclick = () => {
+  $('#pinInput').value = ''; $('#pinErr').textContent = '';
+  $('#pinModal').classList.remove('hidden'); $('#pinInput').focus();
+};
+$('#pinCancel').onclick = () => $('#pinModal').classList.add('hidden');
+$('#pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#pinOk').click(); });
+$('#pinOk').onclick = async () => {
+  const pin = $('#pinInput').value.trim();
+  $('#pinOk').disabled = true;
+  try {
+    const j = await api('admin', { pin });
+    adminPin = pin; adminEmps = j.employees; locations = j.locations || locations; currency = j.currency; company = j.company;
+    $('#pinModal').classList.add('hidden');
+    openAdmin();
+  } catch(e){ $('#pinErr').textContent = e.message; }
+  $('#pinOk').disabled = false;
+};
+
+function openAdmin(){
+  mode = 'admin';
+  show('admin');
+  $('#video2').srcObject = stream;
+  $('#video2').play().catch(() => {});
+  renderEmps();
+  const now = new Date();
+  $('#payMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+}
+
+$('#btnExit').onclick = async () => {
+  mode = 'kiosk'; adminPin = '';
+  show('kiosk');
+  try { await loadEmployees(); } catch(e){ setStatus('⚠ ' + e.message, 'bad'); }
+};
+
+$('#btnReset').onclick = () => {
+  if (!confirm('Change the Sheet URL / kiosk key on this device?')) return;
+  try { localStorage.removeItem(STORE); } catch(e){}
+  location.reload();
+};
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  ['reg','today','pay','loc'].forEach(t => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  if (b.dataset.tab === 'today') loadToday();
+  if (b.dataset.tab === 'loc') renderLocList();
+});
+
+/* ---------- register faces ---------- */
+function renderEmps(){
+  const sel = $('#empSel'), cur = sel.value;
+  sel.innerHTML = adminEmps.filter(e => e.active)
+    .map(e => `<option value="${esc(e.id)}">${esc(e.name)} (${esc(e.id)})${e.faces ? ' ✓' : ''}</option>`).join('');
+  if (cur) sel.value = cur;
+  $('#empList').innerHTML = adminEmps.map(e => `<div><span>${esc(e.name)} <span style="color:var(--mute)">· ${esc(e.position || '')} · ${esc(e.start)}–${esc(e.end)}</span></span>
+    <span class="tag ${e.faces ? 'yes' : ''}">${e.active ? (e.faces ? 'Face registered' : 'No face yet') : 'Inactive'}</span></div>`).join('')
+    || '<div>No employees yet — add them in the Employees tab of the Sheet.</div>';
+}
+
+$('#capBtn').onclick = async () => {
+  const id = $('#empSel').value;
+  if (!id) return;
+  const btn = $('#capBtn'); btn.disabled = true;
+  const v = $('#video2'), samples = [];
+  try {
+    for (let tries = 0; samples.length < 5 && tries < 50; tries++){
+      $('#capMsg').textContent = `Capturing ${samples.length}/5… look at the camera, turn head slightly`;
+      const d = await detect(v);
+      if (d && d.detection.box.width > v.videoWidth * 0.2){
+        samples.push(Array.from(d.descriptor).map(x => Math.round(x * 1e5) / 1e5));
+        await sleep(500);
+      } else {
+        await sleep(250);
+      }
+    }
+    if (samples.length < 5){ $('#capMsg').textContent = '⚠ Could not see the face clearly. Move closer, use good light, and try again.'; return; }
+
+    if (matcher){
+      const m = matcher.findBestMatch(new Float32Array(samples[0]));
+      if (m.label !== 'unknown' && m.label !== id){
+        const other = adminEmps.find(e => e.id === m.label);
+        if (!confirm(`This face looks like ${other ? other.name : m.label}, who is already registered. Save anyway?`)){
+          $('#capMsg').textContent = 'Cancelled.'; return;
+        }
+      }
+    }
+    $('#capMsg').textContent = 'Saving…';
+    await api('registerFace', { pin: adminPin, id, faces: samples });
+    const e = adminEmps.find(x => x.id === id); if (e) e.faces = samples.length;
+    renderEmps();
+    await loadEmployees();
+    $('#capMsg').textContent = '✓ Face saved for ' + (e ? e.name : id) + '.';
+  } catch(err){
+    $('#capMsg').textContent = '⚠ ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+$('#clearBtn').onclick = async () => {
+  const id = $('#empSel').value; if (!id) return;
+  if (!confirm('Remove the saved face for this employee?')) return;
+  try {
+    await api('clearFace', { pin: adminPin, id });
+    const e = adminEmps.find(x => x.id === id); if (e) e.faces = 0;
+    renderEmps(); await loadEmployees();
+    $('#capMsg').textContent = 'Face removed.';
+  } catch(err){ $('#capMsg').textContent = '⚠ ' + err.message; }
+};
+
+/* ---------- today ---------- */
+$('#todayBtn').onclick = loadToday;
+async function loadToday(){
+  const t = $('#todayTbl');
+  t.innerHTML = '<tr><td>Loading…</td></tr>';
+  try {
+    const j = await api('today', { pin: adminPin });
+    if (!j.records.length){ t.innerHTML = '<tr><td>No scans yet today.</td></tr>'; return; }
+    t.innerHTML = '<tr><th>Time</th><th>Name</th><th>Type</th><th>Store</th><th class="n">Match</th><th>Photo</th></tr>' +
+      j.records.slice().reverse().map(r => `<tr><td>${esc(r.time)}</td><td>${esc(r.name)}</td>
+      <td class="${r.type === 'IN' ? 'pill-in' : 'pill-out'}">${esc(r.type)}</td><td>${esc(r.store || '—')}</td><td class="n">${esc(r.score)}</td>
+      <td>${r.photo ? `<a href="${esc(r.photo)}" target="_blank" rel="noopener">View</a>` : ''}</td></tr>`).join('');
+  } catch(e){ t.innerHTML = `<tr><td>⚠ ${esc(e.message)}</td></tr>`; }
+}
+
+/* ---------- store location (admin) ---------- */
+function renderLocList(){
+  $('#locList').innerHTML = locations.map(l => `<div><span>${esc(l.name)} <span style="color:var(--mute)">· ${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</span></span>
+    <span class="tag yes">${l.radius} m</span></div>`).join('') || '<div>No store saved yet.</div>';
+  if (fix) $('#locMsg').textContent = `Your phone now: ±${Math.round(fix.acc)} m accuracy` + (fix.acc > 50 ? ' — wait a few seconds for a better fix before saving.' : '');
+}
+$('#locSave').onclick = async () => {
+  const btn = $('#locSave'); btn.disabled = true;
+  $('#locMsg').textContent = 'Getting your position…';
+  try {
+    fix = null;
+    const f = await getFreshFix();
+    if (!f) throw new Error('Could not get GPS. Allow location for this page.');
+    const j = await api('setLocation', { pin: adminPin, name: $('#locName').value, radius: $('#locRadius').value, lat: f.lat, lng: f.lng });
+    locations = j.locations; renderLocList(); renderLoc();
+    $('#locMsg').textContent = `✓ Saved (GPS accuracy ±${Math.round(f.acc)} m).`;
+  } catch(e){ $('#locMsg').textContent = '⚠ ' + e.message; }
+  btn.disabled = false;
+};
+
+/* ---------- payroll ---------- */
+$('#payBtn').onclick = async () => {
+  const month = $('#payMonth').value;
+  if (!month) return;
+  const btn = $('#payBtn'); btn.disabled = true;
+  $('#payMsg').textContent = 'Calculating…';
+  try {
+    const j = await api('payroll', { pin: adminPin, month });
+    payRows = j.rows; payMonth = month;
+    $('#payMsg').textContent = 'Tap a row to open and print the payslip. Saved to the Payroll tab.';
+    const total = payRows.reduce((s, r) => s + r.net, 0);
+    $('#payTbl').innerHTML = `<tr><th>Name</th><th class="n">Present</th><th class="n">Absent</th><th class="n">Late min</th>
+      <th class="n">OT min</th><th class="n">Commission</th><th class="n">Advances</th><th class="n">Net pay</th></tr>` +
+      payRows.map((r, i) => `<tr class="click" data-i="${i}"><td>${esc(r.name)}${r.noOut ? ' <span class="tag">' + r.noOut + ' no clock-out</span>' : ''}</td>
+      <td class="n">${r.present}/${r.sched}</td><td class="n">${r.absent + r.unpaid}</td><td class="n">${r.lateMin}</td>
+      <td class="n">${r.otMin}</td><td class="n">${money(r.commission)}</td><td class="n">${money(r.advances)}</td>
+      <td class="n"><b>${money(r.net)}</b></td></tr>`).join('') +
+      `<tr><td colspan="7"><b>Total</b></td><td class="n"><b>${money(total)} ${esc(currency)}</b></td></tr>`;
+    document.querySelectorAll('#payTbl tr.click').forEach(tr => tr.onclick = () => openSlip(payRows[+tr.dataset.i]));
+  } catch(e){ $('#payMsg').textContent = '⚠ ' + e.message; }
+  btn.disabled = false;
+};
+
+function openSlip(r){
+  const line = (label, val, neg) => `<tr><td>${label}</td><td class="n">${neg && val ? '−' : ''}${money(val)}</td></tr>`;
+  const gross = r.salary + r.otPay + r.commission;
+  const ded = r.absentDed + r.lateDed + r.earlyDed + r.advances + r.ss;
+  const [y, m] = payMonth.split('-');
+  const monthName = new Date(+y, +m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  $('#slip').innerHTML = `
+    <h3>${esc(company)} — Payslip</h3>
+    <div class="muted">${esc(monthName)} · Currency: ${esc(currency)}</div>
+    <div style="margin-top:12px"><b>${esc(r.name)}</b> <span class="muted">(${esc(r.id)}${r.position ? ' · ' + esc(r.position) : ''})</span></div>
+    <div class="muted" style="margin-top:4px">Days worked ${r.present}/${r.sched} · Absent ${r.absent} · Unpaid leave ${r.unpaid} · Paid leave ${r.paidLeave}
+      · Late ${r.lateMin} min · OT ${r.otMin} min${r.offDays ? ' · Days off worked ' + r.offDays : ''}${r.noOut ? ' · Missing clock-out ' + r.noOut : ''}</div>
+    <table>
+      <tr class="sec"><td>Earnings</td><td></td></tr>
+      ${line('Monthly salary', r.salary)}
+      ${line('Overtime (' + r.otMin + ' min)', r.otPay)}
+      ${line('Commission / bonus', r.commission)}
+      <tr><td><b>Gross</b></td><td class="n"><b>${money(gross)}</b></td></tr>
+      <tr class="sec"><td>Deductions</td><td></td></tr>
+      ${line('Absence (' + (r.absent + r.unpaid) + ' days)', r.absentDed, true)}
+      ${line('Late (' + r.lateMin + ' min)', r.lateDed, true)}
+      ${line('Early leave (' + r.earlyMin + ' min)', r.earlyDed, true)}
+      ${line('Salary advance', r.advances, true)}
+      ${r.ss ? line('Social security', r.ss, true) : ''}
+      <tr><td><b>Total deductions</b></td><td class="n"><b>−${money(ded)}</b></td></tr>
+      <tr class="tot"><td>NET PAY</td><td class="n">${money(r.net)} ${esc(currency)}</td></tr>
+    </table>
+    <div class="sign"><div>Employee</div><div>Manager</div></div>
+    <div class="row noprint" style="justify-content:flex-end">
+      <button id="slipClose" style="background:#e4e4e7;color:#111">Close</button>
+      <button class="primary" onclick="window.print()">Print</button>
+    </div>`;
+  $('#slipModal').classList.remove('hidden');
+  $('#slipClose').onclick = () => $('#slipModal').classList.add('hidden');
+}
+
+boot();
+</script>
+</body>
+</html>
