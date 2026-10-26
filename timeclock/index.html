@@ -105,7 +105,7 @@ a{color:#93c5fd}
   <div class="panel">
     <h1>Time Clock setup</h1>
     <p>Do this once on the store tablet.</p>
-    <label>Web app URL (from Apps Script → Deploy)</label>
+    <label>Web app URL or Deployment ID (Apps Script › Deploy › Manage deployments)</label>
     <input id="setUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
     <label>Kiosk key (Settings tab in the Sheet)</label>
     <input id="setKey" placeholder="e.g. 7F3A9C21B0" autocomplete="off">
@@ -259,10 +259,29 @@ function tick(){
 setInterval(tick, 1000); tick();
 
 /* ---------- setup ---------- */
+function normaliseUrl(raw){
+  const t = String(raw || '').replace(/\s+/g, '');
+  // Full or partial web app URL, including /a/<domain>/macros/s/... and /dev links
+  let m = t.match(/\/macros\/(?:a\/[^/]+\/)?s\/([A-Za-z0-9_-]{20,})/) || t.match(/\/a\/[^/]+\/macros\/s\/([A-Za-z0-9_-]{20,})/);
+  if (m) return 'https://script.google.com/macros/s/' + m[1] + '/exec';
+  // Just the Deployment ID
+  m = t.match(/^(AKfy[A-Za-z0-9_-]{20,})$/);
+  if (m) return 'https://script.google.com/macros/s/' + m[1] + '/exec';
+  return '';
+}
 $('#setSave').onclick = async () => {
-  const url = $('#setUrl').value.trim(), key = $('#setKey').value.trim();
+  const raw = $('#setUrl').value.trim(), key = $('#setKey').value.trim().toUpperCase();
   $('#setErr').textContent = '';
-  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { $('#setErr').textContent = 'The URL should start with https://script.google.com and end with /exec'; return; }
+  const url = normaliseUrl(raw);
+  if (!url) {
+    $('#setErr').textContent = /docs\.google\.com/.test(raw)
+      ? 'That is the Sheet link. Paste the Web app URL from Apps Script › Deploy › Manage deployments instead.'
+      : /\/edit|home\/projects/.test(raw)
+      ? 'That is the Apps Script editor link. Paste the Web app URL from Deploy › Manage deployments instead.'
+      : 'Paste the Web app URL (or the Deployment ID) from Apps Script › Deploy › Manage deployments.';
+    return;
+  }
+  if (!key) { $('#setErr').textContent = 'Enter the kiosk key from the Settings tab.'; return; }
   cfg = { url, key };
   $('#setSave').disabled = true;
   try { await api('ping'); saveCfg(); boot(); }
